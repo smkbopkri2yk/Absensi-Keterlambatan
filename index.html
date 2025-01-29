@@ -8,6 +8,9 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
   <!-- SheetJS CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
 
   <style>
     /* ========== RESET & GLOBAL STYLES ========== */
@@ -699,111 +702,164 @@
     // Definisikan urutan hari
     const dayOrder = ["Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
 
-    // Definisikan localStorage keys
-    const STORAGE_KEYS = {
-      HISTORY: 'historyAbsensi',
-      ARCHIVE: 'archiveAbsensi',
-      GURU: 'petugasGuru',
-      SISWA: 'petugasSiswa',
-      DATA_SISWA: 'databaseSiswa',
-      DATA_KETERLAMBATAN: 'dataKeterlambatan',
-      LAST_ARCHIVE: 'lastArchiveDate',
-      CURRENT_PENGISI: 'currentPengisi'
-    };
-
     /********************************************************
-     *          FUNGSI UNTUK LOCAL STORAGE
+     *          FUNGSI UNTUK FIRESTORE CRUD
      ********************************************************/
-    function saveData() {
-      localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(historyAbsensi));
-      localStorage.setItem(STORAGE_KEYS.ARCHIVE, JSON.stringify(archiveAbsensi));
-      localStorage.setItem(STORAGE_KEYS.GURU, JSON.stringify(petugasGuru));
-      localStorage.setItem(STORAGE_KEYS.SISWA, JSON.stringify(petugasSiswa));
-      localStorage.setItem(STORAGE_KEYS.DATA_SISWA, JSON.stringify(databaseSiswa));
-      localStorage.setItem(STORAGE_KEYS.DATA_KETERLAMBATAN, JSON.stringify(dataKeterlambatan));
-      localStorage.setItem(STORAGE_KEYS.LAST_ARCHIVE, JSON.stringify(new Date()));
-      localStorage.setItem(STORAGE_KEYS.CURRENT_PENGISI, JSON.stringify(currentPengisi));
+    async function saveData() {
+      try {
+        // Clear existing collections
+        await clearCollection('historyAbsensi');
+        await clearCollection('archiveAbsensi');
+        await clearCollection('petugasGuru');
+        await clearCollection('petugasSiswa');
+        await clearCollection('databaseSiswa');
+        await clearCollection('dataKeterlambatan');
+
+        // Save historyAbsensi
+        for(let record of historyAbsensi){
+          await db.collection('historyAbsensi').add(record);
+        }
+
+        // Save archiveAbsensi
+        for(let record of archiveAbsensi){
+          await db.collection('archiveAbsensi').add(record);
+        }
+
+        // Save petugasGuru
+        for(let guru of petugasGuru){
+          await db.collection('petugasGuru').add(guru);
+        }
+
+        // Save petugasSiswa
+        for(let siswa of petugasSiswa){
+          await db.collection('petugasSiswa').add({nama: siswa});
+        }
+
+        // Save databaseSiswa
+        for(let siswa of databaseSiswa){
+          await db.collection('databaseSiswa').add(siswa);
+        }
+
+        // Save dataKeterlambatan
+        for(let keterlambatan of dataKeterlambatan){
+          await db.collection('dataKeterlambatan').add(keterlambatan);
+        }
+
+        // Save currentPengisi
+        await db.collection('currentPengisi').doc('pengisi').set({nama: currentPengisi});
+        
+        console.log("Data berhasil disimpan ke Firestore.");
+      } catch (error) {
+        console.error("Error menyimpan data ke Firestore:", error);
+        alert("Terjadi kesalahan saat menyimpan data.");
+      }
     }
 
-    function loadData() {
-      let history = localStorage.getItem(STORAGE_KEYS.HISTORY);
-      if(history) historyAbsensi = JSON.parse(history);
-      
-      let archive = localStorage.getItem(STORAGE_KEYS.ARCHIVE);
-      if(archive) archiveAbsensi = JSON.parse(archive);
-      
-      let guru = localStorage.getItem(STORAGE_KEYS.GURU);
-      if(guru) petugasGuru = JSON.parse(guru);
-      
-      let siswa = localStorage.getItem(STORAGE_KEYS.SISWA);
-      if(siswa) petugasSiswa = JSON.parse(siswa);
-      
-      let dataS = localStorage.getItem(STORAGE_KEYS.DATA_SISWA);
-      if(dataS) {
-        try {
-          databaseSiswa = JSON.parse(dataS);
-          // Pastikan databaseSiswa adalah array
-          if(!Array.isArray(databaseSiswa)){
-            databaseSiswa = [];
-          }
-        } catch(e) {
-          console.error("Error parsing databaseSiswa from localStorage:", e);
-          databaseSiswa = [];
-        }
-      }
+    async function loadData() {
+      try {
+        // Load historyAbsensi
+        let historySnapshot = await db.collection('historyAbsensi').get();
+        historyAbsensi = [];
+        historySnapshot.forEach(doc => {
+          historyAbsensi.push(doc.data());
+        });
 
-      let dataKet = localStorage.getItem(STORAGE_KEYS.DATA_KETERLAMBATAN);
-      if(dataKet){
-        try{
-          dataKeterlambatan = JSON.parse(dataKet);
-          if(!Array.isArray(dataKeterlambatan)){
-            dataKeterlambatan = [];
-          }
-        } catch(e){
-          console.error("Error parsing dataKeterlambatan from localStorage:", e);
-          dataKeterlambatan = [];
-        }
+        // Load archiveAbsensi
+        let archiveSnapshot = await db.collection('archiveAbsensi').get();
+        archiveAbsensi = [];
+        archiveSnapshot.forEach(doc => {
+          archiveAbsensi.push(doc.data());
+        });
+
+        // Load petugasGuru
+        let guruSnapshot = await db.collection('petugasGuru').get();
+        petugasGuru = [];
+        guruSnapshot.forEach(doc => {
+          petugasGuru.push(doc.data());
+        });
+
+        // Load petugasSiswa
+        let siswaSnapshot = await db.collection('petugasSiswa').get();
+        petugasSiswa = [];
+        siswaSnapshot.forEach(doc => {
+          petugasSiswa.push(doc.data().nama);
+        });
+
+        // Load databaseSiswa
+        let dataSiswaSnapshot = await db.collection('databaseSiswa').get();
+        databaseSiswa = [];
+        dataSiswaSnapshot.forEach(doc => {
+          databaseSiswa.push(doc.data());
+        });
+
+        // Load dataKeterlambatan
+        let dataKetSnapshot = await db.collection('dataKeterlambatan').get();
+        dataKeterlambatan = [];
+        dataKetSnapshot.forEach(doc => {
+          dataKeterlambatan.push(doc.data());
+        });
+
+        // Load currentPengisi
+        let pengisiDoc = await db.collection('currentPengisi').doc('pengisi').get();
+        currentPengisi = pengisiDoc.exists ? pengisiDoc.data().nama : "";
+
+        console.log("Data berhasil dimuat dari Firestore.");
+      } catch (error) {
+        console.error("Error memuat data dari Firestore:", error);
+        alert("Terjadi kesalahan saat memuat data.");
       }
-      
-      let pengisi = localStorage.getItem(STORAGE_KEYS.CURRENT_PENGISI);
-      if(pengisi) currentPengisi = JSON.parse(pengisi);
+    }
+
+    async function clearCollection(collectionName) {
+      const snapshot = await db.collection(collectionName).get();
+      const batch = db.batch();
+      snapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
     }
 
     /********************************************************
      *          FUNGSI ARCHIVE DATA MINGGUAN
      ********************************************************/
-    function archiveWeeklyData() {
-      let lastArchive = localStorage.getItem(STORAGE_KEYS.LAST_ARCHIVE);
-      let lastDate = lastArchive ? new Date(JSON.parse(lastArchive)) : null;
-      let today = new Date();
+    async function archiveWeeklyData() {
+      try {
+        // Assuming 'settings' collection has a 'lastArchiveDate' field
+        let settingsDoc = await db.collection('settings').doc('archiveDate').get();
+        let lastArchiveDate = settingsDoc.exists ? settingsDoc.data().lastArchiveDate.toDate() : null;
+        let today = new Date();
 
-      if(!lastDate) {
-        // Jika belum pernah di-archive, set tanggal sekarang
-        localStorage.setItem(STORAGE_KEYS.LAST_ARCHIVE, JSON.stringify(today));
-        return;
-      }
+        if(!lastArchiveDate) {
+          // If never archived, set to today
+          await db.collection('settings').doc('archiveDate').set({ lastArchiveDate: firebase.firestore.FieldValue.serverTimestamp() });
+          return;
+        }
 
-      // Hitung selisih minggu
-      let diffTime = today - lastDate;
-      let diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
+        // Calculate difference in weeks
+        let diffTime = today - lastArchiveDate;
+        let diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
 
-      if(diffWeeks >=1){
-        // Pindahkan historyAbsensi ke archiveAbsensi
-        archiveAbsensi = archiveAbsensi.concat(historyAbsensi);
-        historyAbsensi = [];
+        if(diffWeeks >=1){
+          // Pindahkan historyAbsensi ke archiveAbsensi
+          archiveAbsensi = archiveAbsensi.concat(historyAbsensi);
+          historyAbsensi = [];
 
-        // Reset jumlah keterlambatan mingguan
-        dataKeterlambatan.forEach(siswa => {
-          siswa.terlambat_mingguan = 0;
-        });
+          // Reset jumlah keterlambatan mingguan
+          dataKeterlambatan.forEach(siswa => {
+            siswa.terlambat_mingguan = 0;
+          });
 
-        // Simpan tanggal archive terbaru
-        localStorage.setItem(STORAGE_KEYS.LAST_ARCHIVE, JSON.stringify(today));
+          // Save data to Firestore
+          await saveData();
 
-        // Simpan data
-        saveData();
+          // Update lastArchiveDate
+          await db.collection('settings').doc('archiveDate').set({ lastArchiveDate: firebase.firestore.FieldValue.serverTimestamp() });
 
-        alert("Data absensi minggu lalu telah diarsipkan dan keterlambatan mingguan direset.");
+          alert("Data absensi minggu lalu telah diarsipkan dan keterlambatan mingguan direset.");
+        }
+      } catch (error) {
+        console.error("Error mengarsipkan data:", error);
+        alert("Terjadi kesalahan saat mengarsipkan data.");
       }
     }
 
@@ -849,7 +905,7 @@
     /********************************************************
      *     PETUGAS GURU: input & list
      ********************************************************/
-    function tambahPetugasGuru() {
+    async function tambahPetugasGuru() {
       let nama = document.getElementById('guruNama').value.trim();
       let hari = document.getElementById('guruHari').value.trim();
       if (!nama || !hari) {
@@ -867,18 +923,24 @@
         return;
       }
       // Tambah
-      petugasGuru.push({nama, hari});
+      let guru = {nama, hari};
+      petugasGuru.push(guru);
       document.getElementById('guruNama').value = "";
       document.getElementById('guruHari').value = "";
-      alert(`Ditambahkan: ${nama} (hari: ${hari})`);
-      renderPetugasGuruTable();
-      saveData();
-      renderProfileGuru();
-      renderProfilePengisiToday();
-      renderHome(); // Update Home dashboard jika diperlukan
+      try {
+        await db.collection('petugasGuru').add(guru);
+        alert(`Ditambahkan: ${nama} (hari: ${hari})`);
+        renderPetugasGuruTable();
+        renderProfileGuru();
+        renderProfilePengisiToday();
+        renderHome(); // Update Home dashboard jika diperlukan
+      } catch (error) {
+        console.error("Error menambah petugas guru:", error);
+        alert("Terjadi kesalahan saat menambah petugas guru.");
+      }
     }
 
-    function renderPetugasGuruTable() {
+    async function renderPetugasGuruTable() {
       let tbody = document.getElementById('petugasGuruTable');
       tbody.innerHTML = "";
 
@@ -912,15 +974,26 @@
       });
     }
 
-    function hapusPetugasGuru(index){
+    async function hapusPetugasGuru(index){
       if(!confirm(`Hapus guru piket: ${petugasGuru[index].nama} pada hari ${petugasGuru[index].hari}?`)) return;
-      petugasGuru.splice(index,1);
-      renderPetugasGuruTable();
-      saveData();
-      renderProfileGuru();
-      renderProfilePengisiToday();
-      renderHome(); // Update Home dashboard jika diperlukan
-      alert("Guru piket dihapus!");
+      let guru = petugasGuru[index];
+      try {
+        // Find and delete from Firestore
+        let snapshot = await db.collection('petugasGuru').where('nama', '==', guru.nama).where('hari', '==', guru.hari).get();
+        snapshot.forEach(doc => {
+          db.collection('petugasGuru').doc(doc.id).delete();
+        });
+        // Remove from local array
+        petugasGuru.splice(index,1);
+        renderPetugasGuruTable();
+        renderProfileGuru();
+        renderProfilePengisiToday();
+        renderHome(); // Update Home dashboard jika diperlukan
+        alert("Guru piket dihapus!");
+      } catch (error) {
+        console.error("Error menghapus petugas guru:", error);
+        alert("Terjadi kesalahan saat menghapus petugas guru.");
+      }
     }
 
     /********************************************************
@@ -948,7 +1021,7 @@
     }
 
     // Handle Edit Guru Form Submission
-    document.getElementById('editGuruForm').addEventListener('submit', function(e){
+    document.getElementById('editGuruForm').addEventListener('submit', async function(e){
       e.preventDefault();
       let index = parseInt(document.getElementById('editGuruIndex').value);
       let nama = document.getElementById('editGuruNama').value.trim();
@@ -963,20 +1036,32 @@
         alert("Guru dengan nama dan hari piket tersebut sudah ada!");
         return;
       }
-      petugasGuru[index] = {nama, hari};
-      closeEditGuruModal();
-      renderPetugasGuruTable();
-      saveData();
-      renderProfileGuru();
-      renderProfilePengisiToday();
-      renderHome(); // Update Home dashboard jika diperlukan
-      alert("Data guru piket diperbarui!");
+      // Update Firestore
+      try {
+        // Find the Firestore document
+        let guru = petugasGuru[index];
+        let snapshot = await db.collection('petugasGuru').where('nama', '==', guru.nama).where('hari', '==', guru.hari).get();
+        snapshot.forEach(doc => {
+          db.collection('petugasGuru').doc(doc.id).update({nama, hari});
+        });
+        // Update local array
+        petugasGuru[index] = {nama, hari};
+        closeEditGuruModal();
+        renderPetugasGuruTable();
+        renderProfileGuru();
+        renderProfilePengisiToday();
+        renderHome(); // Update Home dashboard jika diperlukan
+        alert("Data guru piket diperbarui!");
+      } catch (error) {
+        console.error("Error memperbarui guru piket:", error);
+        alert("Terjadi kesalahan saat memperbarui guru piket.");
+      }
     });
 
     /********************************************************
      *     MANAGEMEN SISWA: input & list
      ********************************************************/
-    function tambahSiswa(event){
+    async function tambahSiswa(event){
       event.preventDefault();
       let nama = document.getElementById('dataSiswaNama').value.trim();
       let kelas = document.getElementById('dataSiswaKelas').value.trim();
@@ -993,15 +1078,21 @@
         return;
       }
       // Tambah siswa
-      databaseSiswa.push({nama, kelas, nis, waliKelas});
-      document.getElementById('dataSiswaNama').value = "";
-      document.getElementById('dataSiswaKelas').value = "";
-      document.getElementById('dataSiswaNIS').value = "";
-      document.getElementById('dataSiswaWaliKelas').value = "";
-      renderDataSiswaTable();
-      renderDataSiswaList(); // Update datalist untuk autocomplete
-      saveData();
-      alert("Siswa berhasil ditambahkan!");
+      let siswa = {nama, kelas, nis, waliKelas};
+      databaseSiswa.push(siswa);
+      try {
+        await db.collection('databaseSiswa').add(siswa);
+        document.getElementById('dataSiswaNama').value = "";
+        document.getElementById('dataSiswaKelas').value = "";
+        document.getElementById('dataSiswaNIS').value = "";
+        document.getElementById('dataSiswaWaliKelas').value = "";
+        renderDataSiswaTable();
+        renderDataSiswaList(); // Update datalist untuk autocomplete
+        alert("Siswa berhasil ditambahkan!");
+      } catch (error) {
+        console.error("Error menambah siswa:", error);
+        alert("Terjadi kesalahan saat menambah siswa.");
+      }
     }
 
     /********************************************************
@@ -1033,13 +1124,14 @@
     /********************************************************
      *      MODIFIKASI FUNGSI RENDER DATA SISWA
      ********************************************************/
-    function renderDataSiswaTable(filteredData = null){
+    async function renderDataSiswaTable(filteredData = null){
       let tbody = document.getElementById('dataSiswaTable');
       tbody.innerHTML = "";
 
       let dataToRender = filteredData || databaseSiswa;
 
-      dataToRender.forEach((siswa, index) => {
+      for(let index = 0; index < dataToRender.length; index++){
+        let siswa = dataToRender[index];
         let tr = document.createElement('tr');
 
         // Checkbox
@@ -1091,7 +1183,7 @@
 
         tr.appendChild(tdAksi);
         tbody.appendChild(tr);
-      });
+      }
     }
 
     // Fungsi untuk memperbarui datalist untuk autocomplete
@@ -1105,29 +1197,30 @@
       });
     }
 
-    function editSiswa(index){
-      let newNama = prompt("Masukkan nama baru siswa:", databaseSiswa[index].nama);
+    async function editSiswa(index){
+      let siswa = databaseSiswa[index];
+      let newNama = prompt("Masukkan nama baru siswa:", siswa.nama);
       if(newNama === null) return; // Cancel
       newNama = newNama.trim();
       if(!newNama){
         alert("Nama tidak boleh kosong!");
         return;
       }
-      let newKelas = prompt("Masukkan kelas baru siswa:", databaseSiswa[index].kelas);
+      let newKelas = prompt("Masukkan kelas baru siswa:", siswa.kelas);
       if(newKelas === null) return; // Cancel
       newKelas = newKelas.trim();
       if(!newKelas){
         alert("Kelas tidak boleh kosong!");
         return;
       }
-      let newNIS = prompt("Masukkan NIS baru siswa:", databaseSiswa[index].nis);
+      let newNIS = prompt("Masukkan NIS baru siswa:", siswa.nis);
       if(newNIS === null) return; // Cancel
       newNIS = newNIS.trim();
       if(!newNIS){
         alert("NIS tidak boleh kosong!");
         return;
       }
-      let newWaliKelas = prompt("Masukkan Wali Kelas baru siswa:", databaseSiswa[index].waliKelas);
+      let newWaliKelas = prompt("Masukkan Wali Kelas baru siswa:", siswa.waliKelas);
       if(newWaliKelas === null) return; // Cancel
       newWaliKelas = newWaliKelas.trim();
       if(!newWaliKelas){
@@ -1142,41 +1235,81 @@
         alert("Siswa dengan nama atau NIS tersebut sudah ada!");
         return;
       }
-      databaseSiswa[index] = {nama: newNama, kelas: newKelas, nis: newNIS, waliKelas: newWaliKelas};
-      renderDataSiswaTable();
-      renderDataSiswaList(); // Update datalist untuk autocomplete
-      saveData();
-      alert("Data siswa diperbarui!");
+      // Update Firestore
+      try {
+        // Find and update the document
+        let snapshot = await db.collection('databaseSiswa').where('nama', '==', siswa.nama).where('nis', '==', siswa.nis).get();
+        snapshot.forEach(doc => {
+          db.collection('databaseSiswa').doc(doc.id).update({nama: newNama, kelas: newKelas, nis: newNIS, waliKelas: newWaliKelas});
+        });
+        // Update local array
+        databaseSiswa[index] = {nama: newNama, kelas: newKelas, nis: newNIS, waliKelas: newWaliKelas};
+        renderDataSiswaTable();
+        renderDataSiswaList(); // Update datalist untuk autocomplete
+        alert("Data siswa diperbarui!");
+      } catch (error) {
+        console.error("Error memperbarui siswa:", error);
+        alert("Terjadi kesalahan saat memperbarui siswa.");
+      }
     }
 
-    function hapusSiswa(index){
+    async function hapusSiswa(index){
       if(!confirm(`Hapus data siswa: ${databaseSiswa[index].nama} dari kelas ${databaseSiswa[index].kelas}?`)) return;
-      // Hapus dari historyAbsensi dan archiveAbsensi
-      let namaLower = databaseSiswa[index].nama.toLowerCase();
-      historyAbsensi = historyAbsensi.filter(i => i.nama.toLowerCase() !== namaLower);
-      archiveAbsensi = archiveAbsensi.filter(i => i.nama.toLowerCase() !== namaLower);
-      // Hapus dari dataKeterlambatan
-      dataKeterlambatan = dataKeterlambatan.filter(k => k.nama.toLowerCase() !== namaLower);
-      // Hapus dari databaseSiswa
-      let deletedNama = databaseSiswa[index].nama;
-      databaseSiswa.splice(index,1);
-      petugasSiswa = petugasSiswa.filter(s => s.toLowerCase() !== namaLower);
-      renderDataSiswaList(); // Update datalist untuk autocomplete
-      recalcDataSiswaFromHistory();
-      renderHistoryTable();
-      renderDataKeterlambatanTable();
-      renderTerlambatTable();
-      renderDataSiswaTable();
-      renderProfileSiswa();
-      saveData();
-      renderHome(); // Update Home dashboard jika diperlukan
-      alert(`Data siswa "${deletedNama}" dihapus!`);
+      let siswa = databaseSiswa[index];
+      let namaLower = siswa.nama.toLowerCase();
+      try {
+        // Hapus dari Firestore databaseSiswa
+        let snapshot = await db.collection('databaseSiswa').where('nama', '==', siswa.nama).where('nis', '==', siswa.nis).get();
+        snapshot.forEach(doc => {
+          db.collection('databaseSiswa').doc(doc.id).delete();
+        });
+
+        // Hapus dari Firestore historyAbsensi dan archiveAbsensi
+        let historySnapshot = await db.collection('historyAbsensi').where('nama', '==', siswa.nama).get();
+        historySnapshot.forEach(doc => {
+          db.collection('historyAbsensi').doc(doc.id).delete();
+        });
+        let archiveSnapshot = await db.collection('archiveAbsensi').where('nama', '==', siswa.nama).get();
+        archiveSnapshot.forEach(doc => {
+          db.collection('archiveAbsensi').doc(doc.id).delete();
+        });
+
+        // Hapus dari Firestore dataKeterlambatan
+        let ketSnapshot = await db.collection('dataKeterlambatan').where('nama', '==', siswa.nama).get();
+        ketSnapshot.forEach(doc => {
+          db.collection('dataKeterlambatan').doc(doc.id).delete();
+        });
+
+        // Hapus dari Firestore petugasSiswa jika ada
+        let petugasSnapshot = await db.collection('petugasSiswa').where('nama', '==', siswa.nama).get();
+        petugasSnapshot.forEach(doc => {
+          db.collection('petugasSiswa').doc(doc.id).delete();
+        });
+
+        // Hapus dari local array
+        let deletedNama = databaseSiswa[index].nama;
+        databaseSiswa.splice(index,1);
+        petugasSiswa = petugasSiswa.filter(s => s.toLowerCase() !== namaLower);
+        renderDataSiswaList(); // Update datalist untuk autocomplete
+        recalcDataSiswaFromHistory();
+        renderHistoryTable();
+        renderDataKeterlambatanTable();
+        renderTerlambatTable();
+        renderDataSiswaTable();
+        renderProfileSiswa();
+        saveData();
+        renderHome(); // Update Home dashboard jika diperlukan
+        alert(`Data siswa "${deletedNama}" dihapus!`);
+      } catch (error) {
+        console.error("Error menghapus siswa:", error);
+        alert("Terjadi kesalahan saat menghapus siswa.");
+      }
     }
 
     /********************************************************
      *     SIMPAN PETUGAS SISWA
      ********************************************************/
-    function simpanPetugasSiswa() {
+    async function simpanPetugasSiswa() {
       let s1 = document.getElementById('siswa1').value.trim();
       let s2 = document.getElementById('siswa2').value.trim();
       if(!s1||!s2) {
@@ -1191,12 +1324,22 @@
         return;
       }
       petugasSiswa = [s1, s2];
-      alert("Petugas Siswa => "+petugasSiswa.join(" & "));
-      saveData();
-      renderProfileSiswa();
-      renderHome(); // Update Home dashboard jika diperlukan
-      document.getElementById('siswa1').value = "";
-      document.getElementById('siswa2').value = "";
+      try {
+        // Clear existing petugasSiswa
+        await clearCollection('petugasSiswa');
+        // Save new petugasSiswa
+        for(let s of petugasSiswa){
+          await db.collection('petugasSiswa').add({nama: s});
+        }
+        alert("Petugas Siswa => "+petugasSiswa.join(" & "));
+        renderProfileSiswa();
+        renderHome(); // Update Home dashboard jika diperlukan
+        document.getElementById('siswa1').value = "";
+        document.getElementById('siswa2').value = "";
+      } catch (error) {
+        console.error("Error menyimpan petugas siswa:", error);
+        alert("Terjadi kesalahan saat menyimpan petugas siswa.");
+      }
     }
 
     /********************************************************
@@ -1239,7 +1382,7 @@
     /********************************************************
      *            INPUT ABSENSI (CEK DUPLIKAT)
      ********************************************************/
-    function catatKehadiran(event) {
+    async function catatKehadiran(event) {
       event.preventDefault();
       let rawNama = document.getElementById('namaSiswa').value.trim();
       let namaSiswa = rawNama.toLowerCase();
@@ -1265,9 +1408,9 @@
       }
 
       // cek duplikat
-      let dupe = historyAbsensi.some(x=>x.nama.toLowerCase() === namaSiswa && x.tanggal === tanggal);
-      let dupeArchive = archiveAbsensi.some(x=>x.nama.toLowerCase() === namaSiswa && x.tanggal === tanggal);
-      if(dupe || dupeArchive){
+      let historySnapshot = await db.collection('historyAbsensi').where('nama', '==', rawNama).where('tanggal', '==', tanggal).get();
+      let archiveSnapshot = await db.collection('archiveAbsensi').where('nama', '==', rawNama).where('tanggal', '==', tanggal).get();
+      if(!historySnapshot.empty || !archiveSnapshot.empty){
         alert(`Siswa ${rawNama} sudah tercatat di ${tanggal}`);
         return;
       }
@@ -1291,51 +1434,68 @@
       }
 
       // catat
-      historyAbsensi.push({
+      let record = {
         nama: rawNama, // Simpan dengan format asli
         tanggal,
         status:statusKedatangan,
         alasan:finalAlasan,
         pengisi: currentPengisi || "-"
-      });
+      };
 
-      // Update dataKeterlambatan hanya jika status adalah 'late'
-      if(statusKedatangan === "late"){
-        let keterlambatan = dataKeterlambatan.find(k => k.nama.toLowerCase() === namaSiswa);
-        if(keterlambatan){
-          keterlambatan.terlambat_total += 1;
-        } else {
-          dataKeterlambatan.push({
-            nama: rawNama,
-            terlambat_total: 1
-          });
+      try {
+        await db.collection('historyAbsensi').add(record);
+        historyAbsensi.push(record);
+
+        // Update dataKeterlambatan hanya jika status adalah 'late'
+        if(statusKedatangan === "late"){
+          let keterlambatan = dataKeterlambatan.find(k => k.nama.toLowerCase() === namaSiswa);
+          if(keterlambatan){
+            keterlambatan.terlambat_total += 1;
+            // Update Firestore
+            let ketSnapshot = await db.collection('dataKeterlambatan').where('nama', '==', keterlambatan.nama).get();
+            ketSnapshot.forEach(doc => {
+              db.collection('dataKeterlambatan').doc(doc.id).update({terlambat_total: keterlambatan.terlambat_total});
+            });
+          } else {
+            let newKeterlambatan = {
+              nama: rawNama,
+              terlambat_total: 1
+            };
+            dataKeterlambatan.push(newKeterlambatan);
+            await db.collection('dataKeterlambatan').add(newKeterlambatan);
+          }
+
+          // Cek jika terlambat >= 3
+          let currentTotal = dataKeterlambatan.find(k => k.nama.toLowerCase() === namaSiswa)?.terlambat_total || 0;
+          if(currentTotal === 3){
+            alert(`Siswa ${rawNama} sudah terlambat 3x dan harus dipulangkan.`);
+            // Implementasikan logika pemulangan sesuai kebutuhan
+          }
         }
 
-        // Cek jika terlambat >= 3
-        if(keterlambatan && keterlambatan.terlambat_total === 3){
-          alert(`Siswa ${rawNama} sudah terlambat 3x dan harus dipulangkan.`);
-          // Implementasikan logika pemulangan sesuai kebutuhan
-        }
+        recalcDataSiswaFromHistory();
+        renderHistoryTable();
+        renderDataKeterlambatanTable();
+        renderTerlambatTable();
+        renderDataSiswaTable();
+        saveData();
+
+        let box = document.getElementById('absensiStatus');
+        box.style.display="block";
+        box.textContent=`Data tersimpan: ${rawNama}, ${tanggal}, ${statusKedatangan}, Pengisi=${currentPengisi||"-"}`;
+
+        // reset
+        document.getElementById('namaSiswa').value="";
+        document.getElementById('tanggalAbsen').value="";
+        statusSelect.value = "";
+        document.getElementById('dropdownAlasan').value = "";
+        document.getElementById('alasanCustom').value = "";
+        document.getElementById('alasanCustomContainer').style.display = "none";
+
+      } catch (error) {
+        console.error("Error mencatat absensi:", error);
+        alert("Terjadi kesalahan saat mencatat absensi.");
       }
-
-      recalcDataSiswaFromHistory();
-      renderHistoryTable();
-      renderDataKeterlambatanTable();
-      renderTerlambatTable();
-      renderDataSiswaTable();
-      saveData();
-
-      let box = document.getElementById('absensiStatus');
-      box.style.display="block";
-      box.textContent=`Data tersimpan: ${rawNama}, ${tanggal}, ${statusKedatangan}, Pengisi=${currentPengisi||"-"}`;
-
-      // reset
-      document.getElementById('namaSiswa').value="";
-      document.getElementById('tanggalAbsen').value="";
-      statusSelect.value = "";
-      document.getElementById('dropdownAlasan').value = "";
-      document.getElementById('alasanCustom').value = "";
-      document.getElementById('alasanCustomContainer').style.display = "none";
     }
 
     /********************************************************
@@ -1354,15 +1514,11 @@
     /********************************************************
      *      RENDER TABEL HISTORY
      ********************************************************/
-    function renderHistoryTable(filteredData=null) {
+    async function renderHistoryTable(filteredData=null) {
       let tbody = document.getElementById('historyTableBody');
       tbody.innerHTML="";
-      let dataToRender = filteredData || historyAbsensi;
 
-      // Sertakan juga archiveAbsensi jika filter tidak spesifik
-      if(!filteredData){
-        dataToRender = historyAbsensi.concat(archiveAbsensi);
-      }
+      let dataToRender = filteredData || (await fetchAllHistoryAbsensi());
 
       dataToRender.forEach((item,index)=>{
         let tr=document.createElement('tr');
@@ -1419,24 +1575,57 @@
       });
     }
 
-    function updateStatusHistory(index, newStatus){
-      // Tentukan apakah data tersebut berada di historyAbsensi atau archiveAbsensi
-      if(index < historyAbsensi.length){
-        historyAbsensi[index].status = newStatus;
-      } else {
-        archiveAbsensi[index - historyAbsensi.length].status = newStatus;
-      }
-      // Recalculate data
-      recalcDataSiswaFromHistory();
-      renderHistoryTable();
-      renderDataKeterlambatanTable();
-      renderTerlambatTable();
-      saveData();
-      alert("Status absensi berhasil diperbarui!");
-      renderHome(); // Update Home dashboard jika diperlukan
+    async function fetchAllHistoryAbsensi(){
+      let snapshot = await db.collection('historyAbsensi').get();
+      let combinedData = [];
+      snapshot.forEach(doc => {
+        combinedData.push(doc.data());
+      });
+      // Also fetch archiveAbsensi
+      let archiveSnapshot = await db.collection('archiveAbsensi').get();
+      archiveSnapshot.forEach(doc => {
+        combinedData.push(doc.data());
+      });
+      return combinedData;
     }
 
-    function editRiwayatTanggal(index){
+    async function updateStatusHistory(index, newStatus){
+      try {
+        // Determine if the index is in historyAbsensi or archiveAbsensi
+        if(index < historyAbsensi.length){
+          // Update in Firestore
+          let record = historyAbsensi[index];
+          let snapshot = await db.collection('historyAbsensi').where('nama', '==', record.nama).where('tanggal', '==', record.tanggal).get();
+          snapshot.forEach(doc => {
+            db.collection('historyAbsensi').doc(doc.id).update({status: newStatus});
+          });
+          // Update local array
+          historyAbsensi[index].status = newStatus;
+        } else {
+          let archiveIndex = index - historyAbsensi.length;
+          let record = archiveAbsensi[archiveIndex];
+          let snapshot = await db.collection('archiveAbsensi').where('nama', '==', record.nama).where('tanggal', '==', record.tanggal).get();
+          snapshot.forEach(doc => {
+            db.collection('archiveAbsensi').doc(doc.id).update({status: newStatus});
+          });
+          // Update local array
+          archiveAbsensi[archiveIndex].status = newStatus;
+        }
+        // Recalculate data
+        recalcDataSiswaFromHistory();
+        renderHistoryTable();
+        renderDataKeterlambatanTable();
+        renderTerlambatTable();
+        saveData();
+        alert("Status absensi berhasil diperbarui!");
+        renderHome(); // Update Home dashboard jika diperlukan
+      } catch (error) {
+        console.error("Error memperbarui status absensi:", error);
+        alert("Terjadi kesalahan saat memperbarui status absensi.");
+      }
+    }
+
+    async function editRiwayatTanggal(index){
       let oldDate;
       // Tentukan apakah data berada di history atau archive
       if(index < historyAbsensi.length){
@@ -1461,52 +1650,88 @@
           return;
         }
 
-        if(index < historyAbsensi.length){
-          historyAbsensi[index].tanggal=newDate;
-        } else {
-          archiveAbsensi[index - historyAbsensi.length].tanggal=newDate;
+        try {
+          if(index < historyAbsensi.length){
+            // Update in Firestore
+            let record = historyAbsensi[index];
+            let snapshot = await db.collection('historyAbsensi').where('nama', '==', record.nama).where('tanggal', '==', record.tanggal).get();
+            snapshot.forEach(doc => {
+              db.collection('historyAbsensi').doc(doc.id).update({tanggal: newDate});
+            });
+            // Update local array
+            historyAbsensi[index].tanggal = newDate;
+          } else {
+            let archiveIndex = index - historyAbsensi.length;
+            let record = archiveAbsensi[archiveIndex];
+            let snapshot = await db.collection('archiveAbsensi').where('nama', '==', record.nama).where('tanggal', '==', record.tanggal).get();
+            snapshot.forEach(doc => {
+              db.collection('archiveAbsensi').doc(doc.id).update({tanggal: newDate});
+            });
+            // Update local array
+            archiveAbsensi[archiveIndex].tanggal = newDate;
+          }
+
+          recalcDataSiswaFromHistory();
+          renderHistoryTable();
+          renderDataKeterlambatanTable();
+          renderTerlambatTable();
+          saveData();
+          alert("Tanggal berhasil diubah!");
+          renderHome(); // Update Home dashboard jika diperlukan
+        } catch (error) {
+          console.error("Error mengubah tanggal absensi:", error);
+          alert("Terjadi kesalahan saat mengubah tanggal absensi.");
         }
+      }
+    }
+    async function deleteRiwayat(index){
+      try {
+        let rec;
+        if(index < historyAbsensi.length){
+          rec = historyAbsensi[index];
+          // Hapus dari Firestore
+          let snapshot = await db.collection('historyAbsensi').where('nama', '==', rec.nama).where('tanggal', '==', rec.tanggal).get();
+          snapshot.forEach(doc => {
+            db.collection('historyAbsensi').doc(doc.id).delete();
+          });
+          // Hapus dari local array
+          historyAbsensi.splice(index,1);
+        } else {
+          let archiveIndex = index - historyAbsensi.length;
+          rec = archiveAbsensi[archiveIndex];
+          // Hapus dari Firestore
+          let snapshot = await db.collection('archiveAbsensi').where('nama', '==', rec.nama).where('tanggal', '==', rec.tanggal).get();
+          snapshot.forEach(doc => {
+            db.collection('archiveAbsensi').doc(doc.id).delete();
+          });
+          // Hapus dari local array
+          archiveAbsensi.splice(archiveIndex,1);
+        }
+
+        // Hapus dari dataKeterlambatan
+        dataKeterlambatan = dataKeterlambatan.filter(k => k.nama.toLowerCase() !== rec.nama.toLowerCase());
 
         recalcDataSiswaFromHistory();
         renderHistoryTable();
         renderDataKeterlambatanTable();
         renderTerlambatTable();
         saveData();
-        alert("Tanggal berhasil diubah!");
+        alert("Data absensi terhapus!");
         renderHome(); // Update Home dashboard jika diperlukan
+      } catch (error) {
+        console.error("Error menghapus absensi:", error);
+        alert("Terjadi kesalahan saat menghapus absensi.");
       }
-    }
-    function deleteRiwayat(index){
-      let rec;
-      if(index < historyAbsensi.length){
-        rec = historyAbsensi[index];
-      } else {
-        rec = archiveAbsensi[index - historyAbsensi.length];
-      }
-
-      if(!confirm(`Hapus absensi: ${rec.nama}, ${rec.tanggal}?`))return;
-      if(index < historyAbsensi.length){
-        historyAbsensi.splice(index,1);
-      } else {
-        archiveAbsensi.splice(index - historyAbsensi.length,1);
-      }
-      recalcDataSiswaFromHistory();
-      renderHistoryTable();
-      renderDataKeterlambatanTable();
-      renderTerlambatTable();
-      saveData();
-      alert("Data absensi terhapus!");
-      renderHome(); // Update Home dashboard jika diperlukan
     }
 
     /********************************************************
      *      RENDER TABEL DATA KETERLAMBATAN
      ********************************************************/
-    function renderDataKeterlambatanTable(){
+    async function renderDataKeterlambatanTable(){
       let tbody = document.getElementById('dataKeterlambatanTable');
       tbody.innerHTML = "";
 
-      dataKeterlambatan.forEach((siswa, index) => {
+      dataKeterlambatan.forEach(async (siswa, index) => {
         let tr = document.createElement('tr');
 
         let tdNama = document.createElement('td');
@@ -1538,64 +1763,100 @@
       });
     }
 
-    function resetKeterlambatan(index){
+    async function resetKeterlambatan(index){
       if(!confirm(`Reset jumlah keterlambatan siswa: ${dataKeterlambatan[index].nama}?`)) return;
       let namaLower = dataKeterlambatan[index].nama.toLowerCase();
-      // Reset keterlambatan_total di dataKeterlambatan
-      dataKeterlambatan[index].terlambat_total = 0;
-      // Reset keterlambatan_total di dataSiswa
-      if(dataSiswa[dataKeterlambatan[index].nama]){
-        dataSiswa[dataKeterlambatan[index].nama].terlambat_total = 0;
-      }
-      renderDataKeterlambatanTable();
-      renderTerlambatTable();
-      saveData();
-      alert(`Jumlah keterlambatan siswa "${dataKeterlambatan[index].nama}" telah direset.`);
-      renderHome(); // Update Home dashboard jika diperlukan
-    }
-
-    function hapusKeterlambatan(index){
-      if(!confirm(`Hapus data keterlambatan siswa: ${dataKeterlambatan[index].nama}?`)) return;
-      dataKeterlambatan.splice(index,1);
-      renderDataKeterlambatanTable();
-      renderTerlambatTable();
-      saveData();
-      alert("Data keterlambatan siswa dihapus dari Data Keterlambatan.");
-      renderHome(); // Update Home dashboard jika diperlukan
-    }
-
-    function resetSemuaKeterlambatan(){
-      if(!confirm("Yakin reset semua keterlambatan siswa?")) return;
-      dataKeterlambatan.forEach(siswa => {
-        siswa.terlambat_total = 0;
-        if(dataSiswa[siswa.nama]){
-          dataSiswa[siswa.nama].terlambat_total = 0;
+      try {
+        // Update Firestore
+        let snapshot = await db.collection('dataKeterlambatan').where('nama', '==', dataKeterlambatan[index].nama).get();
+        snapshot.forEach(doc => {
+          db.collection('dataKeterlambatan').doc(doc.id).update({terlambat_total: 0});
+        });
+        // Reset keterlambatan_total di local array
+        dataKeterlambatan[index].terlambat_total = 0;
+        // Reset keterlambatan_total di dataSiswa
+        if(dataSiswa[dataKeterlambatan[index].nama]){
+          dataSiswa[dataKeterlambatan[index].nama].terlambat_total = 0;
         }
-      });
-      renderDataKeterlambatanTable();
-      renderTerlambatTable();
-      saveData();
-      alert("Semua keterlambatan siswa telah direset.");
-      renderHome(); // Update Home dashboard jika diperlukan
+        renderDataKeterlambatanTable();
+        renderTerlambatTable();
+        saveData();
+        alert(`Jumlah keterlambatan siswa "${dataKeterlambatan[index].nama}" telah direset.`);
+        renderHome(); // Update Home dashboard jika diperlukan
+      } catch (error) {
+        console.error("Error mereset keterlambatan:", error);
+        alert("Terjadi kesalahan saat mereset keterlambatan.");
+      }
+    }
+
+    async function hapusKeterlambatan(index){
+      if(!confirm(`Hapus data keterlambatan siswa: ${dataKeterlambatan[index].nama}?`)) return;
+      try {
+        // Hapus dari Firestore
+        let snapshot = await db.collection('dataKeterlambatan').where('nama', '==', dataKeterlambatan[index].nama).get();
+        snapshot.forEach(doc => {
+          db.collection('dataKeterlambatan').doc(doc.id).delete();
+        });
+        // Hapus dari local array
+        dataKeterlambatan.splice(index,1);
+        renderDataKeterlambatanTable();
+        renderTerlambatTable();
+        saveData();
+        alert("Data keterlambatan siswa dihapus dari Data Keterlambatan.");
+        renderHome(); // Update Home dashboard jika diperlukan
+      } catch (error) {
+        console.error("Error menghapus keterlambatan:", error);
+        alert("Terjadi kesalahan saat menghapus keterlambatan.");
+      }
+    }
+
+    async function resetSemuaKeterlambatan(){
+      if(!confirm("Yakin reset semua keterlambatan siswa?")) return;
+      try {
+        // Reset semua keterlambatan di Firestore
+        for(let keterlambatan of dataKeterlambatan){
+          let snapshot = await db.collection('dataKeterlambatan').where('nama', '==', keterlambatan.nama).get();
+          snapshot.forEach(doc => {
+            db.collection('dataKeterlambatan').doc(doc.id).update({terlambat_total: 0});
+          });
+          keterlambatan.terlambat_total = 0;
+        }
+
+        // Reset keterlambatan_total di dataSiswa
+        for(let nama in dataSiswa){
+          if(dataSiswa[nama].terlambat_total > 0){
+            dataSiswa[nama].terlambat_total = 0;
+          }
+        }
+
+        renderDataKeterlambatanTable();
+        renderTerlambatTable();
+        saveData();
+        alert("Semua keterlambatan siswa telah direset.");
+        renderHome(); // Update Home dashboard jika diperlukan
+      } catch (error) {
+        console.error("Error mereset semua keterlambatan:", error);
+        alert("Terjadi kesalahan saat mereset semua keterlambatan.");
+      }
     }
 
     /********************************************************
      *      FILTER HISTORY
      ********************************************************/
-    function filterHistoryByDate(){
+    async function filterHistoryByDate(){
       let date = document.getElementById('filterDate').value;
       if(!date){
         alert("Pilih tanggal terlebih dahulu!");
         return;
       }
-      // Sertakan archiveAbsensi
-      let combinedData = historyAbsensi.concat(archiveAbsensi);
+      // Fetch data from Firestore
+      let combinedData = await fetchAllHistoryAbsensi();
       let filtered = combinedData.filter(item => item.tanggal === date);
       renderHistoryTable(filtered);
       displayFilterResult(`Tampilkan data absensi tanggal ${date}`, filtered.length);
     }
 
-    function filterHistoryByDateRange(){
+    async function filterHistoryByDateRange(){
       let startDate = document.getElementById('filterStartDate').value;
       let endDate = document.getElementById('filterEndDate').value;
       if(!startDate || !endDate){
@@ -1606,7 +1867,8 @@
         alert("Tanggal mulai tidak boleh lebih besar dari tanggal akhir!");
         return;
       }
-      let combinedData = historyAbsensi.concat(archiveAbsensi);
+      // Fetch data from Firestore
+      let combinedData = await fetchAllHistoryAbsensi();
       let filtered = combinedData.filter(item => item.tanggal >= startDate && item.tanggal <= endDate);
       renderHistoryTable(filtered);
       displayFilterResult(`Tampilkan data absensi dari ${startDate} sampai ${endDate}`, filtered.length);
@@ -1637,7 +1899,7 @@
     /********************************************************
      *      STATISTIK: BAR CHART (SKALA 0–15)
      ********************************************************/
-    function renderStatisticChart(){
+    async function renderStatisticChart(){
       let option = document.getElementById('chartOption').value;
       let chartTitle = "";
       let labels = [];
@@ -1648,7 +1910,7 @@
       let statistikBulan = document.getElementById('statistikBulan').value;
 
       // Menggabungkan data dari historyAbsensi dan archiveAbsensi
-      let combinedData = historyAbsensi.concat(archiveAbsensi);
+      let combinedData = await fetchAllHistoryAbsensi();
 
       if(option === "siswa"){
         if(statistikBulan){
@@ -1839,7 +2101,7 @@
     /********************************************************
      *      IMPORT DATA SISWA (Excel)
      ********************************************************/
-    function importDataSiswa(){
+    async function importDataSiswa(){
       let fileInput = document.getElementById('importFileSiswa');
       let file = fileInput.files[0];
       if(!file){
@@ -1848,7 +2110,7 @@
       }
 
       let reader = new FileReader();
-      reader.onload = function(e){
+      reader.onload = async function(e){
         let data = new Uint8Array(e.target.result);
         let workbook = XLSX.read(data, {type: 'array'});
 
@@ -1891,14 +2153,19 @@
           }
 
           // Tambah siswa
-          databaseSiswa.push({nama, kelas, nis, waliKelas});
-          importedCount++;
+          let siswa = {nama, kelas, nis, waliKelas};
+          databaseSiswa.push(siswa);
+          try {
+            await db.collection('databaseSiswa').add(siswa);
+            importedCount++;
+          } catch (error) {
+            console.error("Error mengimpor siswa:", error);
+          }
         }
 
         if(importedCount > 0){
           renderDataSiswaTable();
           renderDataSiswaList(); // Update datalist untuk autocomplete
-          saveData();
           alert(`${importedCount} data siswa berhasil diimpor.`);
         } else {
           alert("Tidak ada data siswa yang diimpor. Pastikan file tidak kosong atau data sudah ada di database.");
@@ -1916,39 +2183,56 @@
     /********************************************************
      *      DOWNLOAD DATA BULANAN (Excel)
      ********************************************************/
-    function downloadMonthlyData(){
+    async function downloadMonthlyData(){
       let month = prompt("Masukkan bulan yang ingin di-download (YYYY-MM):", "2025-01");
       if(!month){
         alert("Bulan tidak boleh kosong!");
         return;
       }
 
-      // Filter data untuk bulan tersebut dari archiveAbsensi dan historyAbsensi
-      let filtered = archiveAbsensi.filter(item => item.tanggal.startsWith(month)) // pastikan format tanggal adalah YYYY-MM-DD
-                    .concat(historyAbsensi.filter(item => item.tanggal.startsWith(month)));
-      
-      // Hanya ambil data yang statusnya 'late', 'izin', atau 'dipulangkan'
-      if(filtered.length === 0){
-        alert("Tidak ada data absensi untuk bulan tersebut.");
-        return;
+      try {
+        // Filter data untuk bulan tersebut dari archiveAbsensi dan historyAbsensi
+        let filteredHistory = await db.collection('historyAbsensi').where('tanggal', '>=', `${month}-01`).where('tanggal', '<=', `${month}-31`).get();
+        let filteredArchive = await db.collection('archiveAbsensi').where('tanggal', '>=', `${month}-01`).where('tanggal', '<=', `${month}-31`).get();
+        let filtered = [];
+        filteredHistory.forEach(doc => {
+          let data = doc.data();
+          if(['late','izin','dipulangkan'].includes(data.status)){
+            filtered.push(data);
+          }
+        });
+        filteredArchive.forEach(doc => {
+          let data = doc.data();
+          if(['late','izin','dipulangkan'].includes(data.status)){
+            filtered.push(data);
+          }
+        });
+
+        if(filtered.length === 0){
+          alert("Tidak ada data absensi untuk bulan tersebut.");
+          return;
+        }
+
+        // Buat worksheet
+        let ws_data = [["Nama Siswa", "Tanggal Absensi", "Status", "Alasan", "Kelas", "Wali Kelas"]];
+        for(let item of filtered){
+          // Cari kelas dan wali kelas dari databaseSiswa
+          let siswa = databaseSiswa.find(s => s.nama.toLowerCase() === item.nama.toLowerCase());
+          let kelas = siswa ? siswa.kelas : "-";
+          let waliKelas = siswa ? siswa.waliKelas : "-";
+          ws_data.push([item.nama, item.tanggal, capitalizeFirstLetter(item.status), item.alasan, kelas, waliKelas]);
+        }
+
+        let ws = XLSX.utils.aoa_to_sheet(ws_data);
+        let wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Absensi");
+
+        // Download
+        XLSX.writeFile(wb, `Absensi_${month}.xlsx`);
+      } catch (error) {
+        console.error("Error mendownload data bulanan:", error);
+        alert("Terjadi kesalahan saat mendownload data bulanan.");
       }
-
-      // Buat worksheet
-      let ws_data = [["Nama Siswa", "Tanggal Absensi", "Status", "Alasan", "Kelas", "Wali Kelas"]];
-      filtered.forEach(item => {
-        // Cari kelas dan wali kelas dari databaseSiswa
-        let siswa = databaseSiswa.find(s => s.nama.toLowerCase() === item.nama.toLowerCase());
-        let kelas = siswa ? siswa.kelas : "-";
-        let waliKelas = siswa ? siswa.waliKelas : "-";
-        ws_data.push([item.nama, item.tanggal, capitalizeFirstLetter(item.status), item.alasan, kelas, waliKelas]);
-      });
-
-      let ws = XLSX.utils.aoa_to_sheet(ws_data);
-      let wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Absensi");
-
-      // Download
-      XLSX.writeFile(wb, `Absensi_${month}.xlsx`);
     }
 
     // Helper function untuk mengkapitalisasi huruf pertama
@@ -1959,12 +2243,19 @@
     /********************************************************
      *               PROFILE
      ********************************************************/
-    function updateProfileInfo(){
-      document.getElementById('profileAbsensiCount').textContent=historyAbsensi.length + archiveAbsensi.length;
+    async function updateProfileInfo(){
+      try {
+        let historyCount = (await db.collection('historyAbsensi').get()).size;
+        let archiveCount = (await db.collection('archiveAbsensi').get()).size;
+        document.getElementById('profileAbsensiCount').textContent = historyCount + archiveCount;
+      } catch (error) {
+        console.error("Error menghitung total absensi:", error);
+        document.getElementById('profileAbsensiCount').textContent = "0";
+      }
     }
 
     // Tampilkan data guru di table, diurut hari senin-sabtu
-    function renderProfileGuru(){
+    async function renderProfileGuru(){
       let sorted = [...petugasGuru];
       // Sort by day index
       sorted.sort((a,b)=> dayOrder.indexOf(a.hari) - dayOrder.indexOf(b.hari));
@@ -2012,7 +2303,7 @@
     }
 
     // Menampilkan dropdown Pengisi => hanya guru sesuai hari aktual
-    function renderProfilePengisiToday(){
+    async function renderProfilePengisiToday(){
       let dayName = getTodayDayName(); // ex "Selasa"
       document.getElementById('hariAktualSpan').textContent= dayName || "(Minggu)";
 
@@ -2057,14 +2348,19 @@
       document.getElementById('currentPengisiSpan').textContent = currentPengisi || "-";
     }
 
-    function setPengisi(){
+    async function setPengisi(){
       let dd=document.getElementById('dropdownPengisi');
       let val=dd.value;
       currentPengisi=val;
       document.getElementById('currentPengisiSpan').textContent= currentPengisi||"-";
-      saveData();
-      alert("Pengisi saat ini => "+currentPengisi);
-      renderHome(); // Update Home dashboard jika diperlukan
+      try {
+        await db.collection('currentPengisi').doc('pengisi').set({nama: currentPengisi});
+        alert("Pengisi saat ini => "+currentPengisi);
+        renderHome(); // Update Home dashboard jika diperlukan
+      } catch (error) {
+        console.error("Error menyimpan pengisi:", error);
+        alert("Terjadi kesalahan saat menyimpan pengisi.");
+      }
     }
 
     // Return dayName from system date => dayOrder atau ""
@@ -2086,17 +2382,17 @@
     /********************************************************
      *      DASHBOARD: RENDER DATA (TERINTEGRASI KE HOME)
      ********************************************************/
-    function renderHome(){
+    async function renderHome(){
       // 1. Grafik Kehadiran Bulanan
-      renderAttendanceLineChart();
+      await renderAttendanceLineChart();
 
       // 2. Top 5 Siswa dengan Keterlambatan Terbanyak
       renderTop5LateStudents();
     }
 
-    function renderAttendanceLineChart(){
+    async function renderAttendanceLineChart(){
       // Ambil bulan terakhir dari data
-      let combinedData = historyAbsensi.concat(archiveAbsensi);
+      let combinedData = await fetchAllHistoryAbsensi();
       if(combinedData.length === 0){
         // Tidak ada data absensi untuk membuat grafik
         let ctx = document.getElementById('chartAttendanceLine').getContext('2d');
@@ -2126,7 +2422,9 @@
       // Buat array tanggal dan jumlah hadir
       let dates = [];
       let counts = [];
-      let daysInMonth = new Date(latestMonth.slice(0,4), latestMonth.slice(5,7), 0).getDate();
+      let year = parseInt(latestMonth.slice(0,4));
+      let month = parseInt(latestMonth.slice(5,7));
+      let daysInMonth = new Date(year, month, 0).getDate();
       for(let day=1; day<=daysInMonth; day++){
         let dateStr = `${latestMonth}-${day.toString().padStart(2,'0')}`;
         dates.push(dateStr);
@@ -2168,7 +2466,7 @@
       });
     }
 
-    function renderTop5LateStudents(){
+    async function renderTop5LateStudents(){
       let tbody = document.getElementById('dashboardTop5TableBody');
       tbody.innerHTML = "";
 
@@ -2200,9 +2498,9 @@
     /********************************************************
      *      INIT 
      ********************************************************/
-    function init(){
-      loadData();
-      archiveWeeklyData();
+    async function init(){
+      await loadData();
+      await archiveWeeklyData();
       recalcDataSiswaFromHistory();
       renderHistoryTable();
       renderDataKeterlambatanTable();
@@ -2213,7 +2511,7 @@
       renderProfileGuru();
       renderProfileSiswa();
       renderProfilePengisiToday();
-      updateProfileInfo();
+      await updateProfileInfo();
       renderHome(); // Render Home dashboard saat inisialisasi
     }
 
@@ -2226,27 +2524,84 @@
     /********************************************************
      *      FUNGSI HAPUS SEMUA & HAPUS PILIH SISWA DI DATA SISWA SCREEN
      ********************************************************/
-    function hapusSemuaSiswa(){
+    async function hapusSemuaSiswa(){
       if(!confirm("Apakah Anda yakin ingin menghapus semua data siswa?")) return;
-      // Hapus semua siswa dari semua data
-      databaseSiswa = [];
-      petugasSiswa = [];
-      historyAbsensi = [];
-      archiveAbsensi = [];
-      dataKeterlambatan = [];
-      recalcDataSiswaFromHistory();
-      renderHistoryTable();
-      renderDataKeterlambatanTable();
-      renderTerlambatTable();
-      renderDataSiswaTable();
-      renderProfileSiswa();
-      renderDataSiswaList(); // Update datalist untuk autocomplete
-      saveData();
-      renderHome(); // Update Home dashboard jika diperlukan
-      alert("Semua data siswa telah dihapus!");
+      try {
+        // Hapus semua siswa dari Firestore
+        let snapshot = await db.collection('databaseSiswa').get();
+        let batch = db.batch();
+        snapshot.forEach(doc => {
+          batch.delete(doc.ref);
+        });
+        await batch.commit();
+        databaseSiswa = [];
+
+        // Hapus semua petugasSiswa
+        let petugasSnapshot = await db.collection('petugasSiswa').get();
+        let batchPetugas = db.batch();
+        petugasSnapshot.forEach(doc => {
+          batchPetugas.delete(doc.ref);
+        });
+        await batchPetugas.commit();
+        petugasSiswa = [];
+
+        // Hapus semua historyAbsensi
+        let historySnapshot = await db.collection('historyAbsensi').get();
+        let batchHistory = db.batch();
+        historySnapshot.forEach(doc => {
+          batchHistory.delete(doc.ref);
+        });
+        await batchHistory.commit();
+        historyAbsensi = [];
+
+        // Hapus semua archiveAbsensi
+        let archiveSnapshot = await db.collection('archiveAbsensi').get();
+        let batchArchive = db.batch();
+        archiveSnapshot.forEach(doc => {
+          batchArchive.delete(doc.ref);
+        });
+        await batchArchive.commit();
+        archiveAbsensi = [];
+
+        // Hapus semua dataKeterlambatan
+        let keterlambatanSnapshot = await db.collection('dataKeterlambatan').get();
+        let batchKeterlambatan = db.batch();
+        keterlambatanSnapshot.forEach(doc => {
+          batchKeterlambatan.delete(doc.ref);
+        });
+        await batchKeterlambatan.commit();
+        dataKeterlambatan = [];
+
+        // Hapus semua petugasGuru
+        let guruSnapshot = await db.collection('petugasGuru').get();
+        let batchGuru = db.batch();
+        guruSnapshot.forEach(doc => {
+          batchGuru.delete(doc.ref);
+        });
+        await batchGuru.commit();
+        petugasGuru = [];
+
+        // Hapus semua pengisi
+        await db.collection('currentPengisi').doc('pengisi').set({nama: ""});
+        currentPengisi = "";
+
+        recalcDataSiswaFromHistory();
+        renderHistoryTable();
+        renderDataKeterlambatanTable();
+        renderTerlambatTable();
+        renderDataSiswaTable();
+        renderProfileSiswa();
+        renderDataSiswaList(); // Update datalist untuk autocomplete
+        saveData();
+        renderHome(); // Update Home dashboard jika diperlukan
+        alert("Semua data siswa telah dihapus!");
+      } catch (error) {
+        console.error("Error menghapus semua siswa:", error);
+        alert("Terjadi kesalahan saat menghapus semua siswa.");
+      }
     }
 
-    function hapusPilihSiswa(){
+    async function hapusPilihSiswa(){
       // Dapatkan semua checkbox yang dipilih
       let checkboxes = document.querySelectorAll('.select-siswa:checked');
       if(checkboxes.length === 0){
@@ -2259,39 +2614,67 @@
       let indices = Array.from(checkboxes).map(cb => parseInt(cb.value)).sort((a,b) => b - a);
       let deletedNames = [];
 
-      indices.forEach(index => {
-        let siswa = databaseSiswa[index];
-        if(siswa){
-          let namaLower = siswa.nama.toLowerCase();
-          // Hapus dari historyAbsensi dan archiveAbsensi
-          historyAbsensi = historyAbsensi.filter(i => i.nama.toLowerCase() !== namaLower);
-          archiveAbsensi = archiveAbsensi.filter(i => i.nama.toLowerCase() !== namaLower);
-          // Hapus dari dataKeterlambatan
-          dataKeterlambatan = dataKeterlambatan.filter(k => k.nama.toLowerCase() !== namaLower);
-          // Hapus dari petugasSiswa jika ada
-          petugasSiswa = petugasSiswa.filter(s => s.toLowerCase() !== namaLower);
-          // Hapus dari databaseSiswa
-          deletedNames.push(siswa.nama);
-          databaseSiswa.splice(index,1);
-        }
-      });
+      try {
+        for(let index of indices){
+          let siswa = databaseSiswa[index];
+          if(siswa){
+            let namaLower = siswa.nama.toLowerCase();
 
-      renderDataSiswaList(); // Update datalist untuk autocomplete
-      recalcDataSiswaFromHistory();
-      renderHistoryTable();
-      renderDataKeterlambatanTable();
-      renderTerlambatTable();
-      renderDataSiswaTable();
-      renderProfileSiswa();
-      saveData();
-      renderHome(); // Update Home dashboard jika diperlukan
-      alert(`Data siswa yang dihapus: ${deletedNames.join(", ")}`);
+            // Hapus dari Firestore databaseSiswa
+            let snapshot = await db.collection('databaseSiswa').where('nama', '==', siswa.nama).where('nis', '==', siswa.nis).get();
+            snapshot.forEach(doc => {
+              db.collection('databaseSiswa').doc(doc.id).delete();
+            });
+
+            // Hapus dari Firestore historyAbsensi dan archiveAbsensi
+            let historySnapshot = await db.collection('historyAbsensi').where('nama', '==', siswa.nama).get();
+            historySnapshot.forEach(doc => {
+              db.collection('historyAbsensi').doc(doc.id).delete();
+            });
+            let archiveSnapshot = await db.collection('archiveAbsensi').where('nama', '==', siswa.nama).get();
+            archiveSnapshot.forEach(doc => {
+              db.collection('archiveAbsensi').doc(doc.id).delete();
+            });
+
+            // Hapus dari Firestore dataKeterlambatan
+            let ketSnapshot = await db.collection('dataKeterlambatan').where('nama', '==', siswa.nama).get();
+            ketSnapshot.forEach(doc => {
+              db.collection('dataKeterlambatan').doc(doc.id).delete();
+            });
+
+            // Hapus dari Firestore petugasSiswa jika ada
+            let petugasSnapshot = await db.collection('petugasSiswa').where('nama', '==', siswa.nama).get();
+            petugasSnapshot.forEach(doc => {
+              db.collection('petugasSiswa').doc(doc.id).delete();
+            });
+
+            // Hapus dari local array
+            deletedNames.push(siswa.nama);
+            databaseSiswa.splice(index,1);
+          }
+        }
+
+        renderDataSiswaList(); // Update datalist untuk autocomplete
+        recalcDataSiswaFromHistory();
+        renderHistoryTable();
+        renderDataKeterlambatanTable();
+        renderTerlambatTable();
+        renderDataSiswaTable();
+        renderProfileSiswa();
+        saveData();
+        renderHome(); // Update Home dashboard jika diperlukan
+        alert(`Data siswa yang dihapus: ${deletedNames.join(", ")}`);
+      } catch (error) {
+        console.error("Error menghapus siswa yang dipilih:", error);
+        alert("Terjadi kesalahan saat menghapus siswa yang dipilih.");
+      }
     }
 
     function toggleSelectAll(source){
       let checkboxes = document.querySelectorAll('.select-siswa');
       checkboxes.forEach(cb => cb.checked = source.checked);
     }
+
   </script>
 </body>
 </html>
