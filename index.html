@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>Absensi & Keterlambatan - Guru Piket + Pengisi</title>
 
-  <!-- Chart.js CDN (Versi Stabil) -->
+  <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
   <!-- SheetJS CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2649,8 +2649,10 @@
             });
 
             // Hapus dari local array
-            deletedNames.push(siswa.nama);
+            let deletedNama = databaseSiswa[index].nama;
             databaseSiswa.splice(index,1);
+            petugasSiswa = petugasSiswa.filter(s => s.toLowerCase() !== namaLower);
+            deletedNames.push(deletedNama);
           }
         }
 
@@ -2674,6 +2676,84 @@
       let checkboxes = document.querySelectorAll('.select-siswa');
       checkboxes.forEach(cb => cb.checked = source.checked);
     }
+
+    /********************************************************
+     *      REKALKULASI DATA SISWA
+     ********************************************************/
+    function recalcDataSiswaFromHistory() {
+      dataSiswa = {};
+      let combinedData = historyAbsensi.concat(archiveAbsensi);
+      combinedData.forEach(record => {
+        let { tanggal, nama, status } = record;
+        if (!dataSiswa[nama]) {
+          dataSiswa[nama] = {
+            terlambat_total: 0,
+            terlambat_mingguan: 0,
+            last_date: ""
+          };
+        }
+        if (status === "late") {
+          dataSiswa[nama].terlambat_total++;
+          dataSiswa[nama].terlambat_mingguan++;
+          if (!dataSiswa[nama].last_date || tanggal > dataSiswa[nama].last_date) {
+            dataSiswa[nama].last_date = tanggal;
+          }
+        }
+      });
+
+      // Update dataKeterlambatan
+      dataKeterlambatan = [];
+      for(let nama in dataSiswa){
+        let info = dataSiswa[nama];
+        if(info.terlambat_total > 0){
+          dataKeterlambatan.push({
+            nama,
+            terlambat_total: info.terlambat_total
+          });
+        }
+      }
+    }
+
+    /********************************************************
+     *      FUNGSI RENDER TERLAMBAT TABLE
+     ********************************************************/
+    // Sudah didefinisikan sebelumnya sebagai renderDataKeterlambatanTable()
+
+    /********************************************************
+     *      DASHBOARD: RENDER DATA (TERINTEGRASI KE HOME)
+     ********************************************************/
+    // Sudah didefinisikan sebelumnya sebagai renderHome()
+
+    /********************************************************
+     *               FIREBASE CONFIGURATION
+     ********************************************************/
+    // 1. Konfigurasi Firebase
+    var firebaseConfig = {
+      apiKey: "AIzaSyAFhjJBCAX9Lwd4x9WD2I8AcJyXXLW_SWg",
+      authDomain: "absensiketerlambatanapp.firebaseapp.com",
+      projectId: "absensiketerlambatanapp",
+      storageBucket: "absensiketerlambatanapp.firebasestorage.app",
+      messagingSenderId: "522595195668",
+      appId: "1:522595195668:web:b61422a0cccc2cf9778001"
+    };
+    // 2. Inisialisasi Firebase
+    firebase.initializeApp(firebaseConfig);
+    var db = firebase.firestore();
+
+    /********************************************************
+     *       FUNGSI ARCHIVE DATA MINGGUAN SECARA OTOMATIS
+     ********************************************************/
+    // Sudah didefinisikan sebelumnya sebagai archiveWeeklyData()
+
+    /********************************************************
+     *      FUNGSI HAPUS SEMUA & HAPUS PILIH SISWA DI DATA SISWA SCREEN
+     ********************************************************/
+    // Sudah didefinisikan sebelumnya sebagai hapusSemuaSiswa() dan hapusPilihSiswa()
+
+    /********************************************************
+     *      FUNGSI FIRESTORE CRUD & LOGIKA LAINNYA
+     ********************************************************/
+    // Semua fungsi CRUD dan logika lain telah didefinisikan di atas
 
   </script>
 </body>
