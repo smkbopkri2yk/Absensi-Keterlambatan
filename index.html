@@ -5,7 +5,7 @@
   <title>Absensi & Keterlambatan - Guru Piket + Pengisi</title>
 
   <!-- Chart.js CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- SheetJS CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <!-- Firebase SDK -->
@@ -931,8 +931,8 @@
         // Tombol Hapus
         let btnHapus = document.createElement('button');
         btnHapus.textContent = "Hapus";
-        btnHapus.classList.add('btn-danger');
         btnHapus.onclick = () => hapusPetugasGuru(item.id);
+        btnHapus.classList.add('btn-danger');
 
         tdAksi.appendChild(btnEdit);
         tdAksi.appendChild(btnHapus);
@@ -940,6 +940,7 @@
         tr.appendChild(tdNama);
         tr.appendChild(tdHari);
         tr.appendChild(tdAksi);
+
         tbody.appendChild(tr);
       });
     }
@@ -1900,6 +1901,21 @@
                 ticks:{
                   stepSize:1
                 }
+              },
+              x:{
+                ticks:{
+                  autoSkip: true,
+                  maxTicksLimit: 15
+                }
+              }
+            },
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    return ` Keterlambatan: ${context.parsed.y}`;
+                  }
+                }
               }
             }
           }
@@ -1928,6 +1944,15 @@
                 min:0,
                 max:15,
                 ticks:{ stepSize:1 }
+              }
+            },
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    return ` Keterlambatan: ${context.parsed.y}`;
+                  }
+                }
               }
             }
           }
@@ -2019,9 +2044,9 @@
      *      DOWNLOAD DATA BULANAN (Excel)
      ********************************************************/
     async function downloadMonthlyData(){
-      let month = prompt("Masukkan bulan yang ingin di-download (YYYY-MM):", "2025-01");
+      let month = document.getElementById('statistikBulan').value;
       if(!month){
-        alert("Bulan tidak boleh kosong!");
+        alert("Silakan pilih bulan terlebih dahulu!");
         return;
       }
 
@@ -2287,6 +2312,15 @@
                 stepSize: 5
               }
             }
+          },
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return ` Kehadiran: ${context.parsed.y}`;
+                }
+              }
+            }
           }
         }
       });
@@ -2326,12 +2360,12 @@
      ********************************************************/
     // 1. Konfigurasi Firebase
     var firebaseConfig = {
-      apiKey: "AIzaSyAFhjJBCAX9Lwd4x9WD2I8AcJyXXLW_SWg",
+      apiKey: "YOUR_FIREBASE_API_KEY",
       authDomain: "absensiketerlambatanapp.firebaseapp.com",
       projectId: "absensiketerlambatanapp",
-      storageBucket: "absensiketerlambatanapp.firebasestorage.app",
-      messagingSenderId: "522595195668",
-      appId: "1:522595195668:web:b61422a0cccc2cf9778001"
+      storageBucket: "absensiketerlambatanapp.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
     };
     // 2. Inisialisasi Firebase
     firebase.initializeApp(firebaseConfig);
