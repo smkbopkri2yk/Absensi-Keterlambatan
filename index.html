@@ -705,103 +705,85 @@
     /********************************************************
      *          FUNGSI UNTUK FIRESTORE CRUD
      ********************************************************/
-    async function saveData() {
-      try {
-        // Clear existing collections
-        await clearCollection('historyAbsensi');
-        await clearCollection('archiveAbsensi');
-        await clearCollection('petugasGuru');
-        await clearCollection('petugasSiswa');
-        await clearCollection('databaseSiswa');
-        await clearCollection('dataKeterlambatan');
-
-        // Save historyAbsensi
-        for(let record of historyAbsensi){
-          await db.collection('historyAbsensi').add(record);
-        }
-
-        // Save archiveAbsensi
-        for(let record of archiveAbsensi){
-          await db.collection('archiveAbsensi').add(record);
-        }
-
-        // Save petugasGuru
-        for(let guru of petugasGuru){
-          await db.collection('petugasGuru').add(guru);
-        }
-
-        // Save petugasSiswa
-        for(let siswa of petugasSiswa){
-          await db.collection('petugasSiswa').add({nama: siswa});
-        }
-
-        // Save databaseSiswa
-        for(let siswa of databaseSiswa){
-          await db.collection('databaseSiswa').add(siswa);
-        }
-
-        // Save dataKeterlambatan
-        for(let keterlambatan of dataKeterlambatan){
-          await db.collection('dataKeterlambatan').add(keterlambatan);
-        }
-
-        // Save currentPengisi
-        await db.collection('currentPengisi').doc('pengisi').set({nama: currentPengisi});
-        
-        console.log("Data berhasil disimpan ke Firestore.");
-      } catch (error) {
-        console.error("Error menyimpan data ke Firestore:", error);
-        alert("Terjadi kesalahan saat menyimpan data.");
-      }
-    }
-
     async function loadData() {
       try {
         // Load historyAbsensi
-        let historySnapshot = await db.collection('historyAbsensi').get();
-        historyAbsensi = [];
-        historySnapshot.forEach(doc => {
-          historyAbsensi.push(doc.data());
+        db.collection('historyAbsensi').onSnapshot(snapshot => {
+          historyAbsensi = [];
+          snapshot.forEach(doc => {
+            historyAbsensi.push(doc.data());
+          });
+          recalcDataSiswaFromHistory();
+          renderHistoryTable();
+          renderDataKeterlambatanTable();
+          renderTerlambatTable();
+          renderHome(); // Update Home dashboard jika diperlukan
         });
 
         // Load archiveAbsensi
-        let archiveSnapshot = await db.collection('archiveAbsensi').get();
-        archiveAbsensi = [];
-        archiveSnapshot.forEach(doc => {
-          archiveAbsensi.push(doc.data());
+        db.collection('archiveAbsensi').onSnapshot(snapshot => {
+          archiveAbsensi = [];
+          snapshot.forEach(doc => {
+            archiveAbsensi.push(doc.data());
+          });
+          recalcDataSiswaFromHistory();
+          renderHistoryTable();
+          renderDataKeterlambatanTable();
+          renderTerlambatTable();
+          renderHome(); // Update Home dashboard jika diperlukan
         });
 
         // Load petugasGuru
-        let guruSnapshot = await db.collection('petugasGuru').get();
-        petugasGuru = [];
-        guruSnapshot.forEach(doc => {
-          petugasGuru.push(doc.data());
+        db.collection('petugasGuru').onSnapshot(snapshot => {
+          petugasGuru = [];
+          snapshot.forEach(doc => {
+            petugasGuru.push(doc.data());
+          });
+          renderPetugasGuruTable();
+          renderProfileGuru();
+          renderProfilePengisiToday();
+          renderHome(); // Update Home dashboard jika diperlukan
         });
 
         // Load petugasSiswa
-        let siswaSnapshot = await db.collection('petugasSiswa').get();
-        petugasSiswa = [];
-        siswaSnapshot.forEach(doc => {
-          petugasSiswa.push(doc.data().nama);
+        db.collection('petugasSiswa').onSnapshot(snapshot => {
+          petugasSiswa = [];
+          snapshot.forEach(doc => {
+            petugasSiswa.push(doc.data().nama);
+          });
+          renderProfileSiswa();
+          renderHome(); // Update Home dashboard jika diperlukan
         });
 
         // Load databaseSiswa
-        let dataSiswaSnapshot = await db.collection('databaseSiswa').get();
-        databaseSiswa = [];
-        dataSiswaSnapshot.forEach(doc => {
-          databaseSiswa.push(doc.data());
+        db.collection('databaseSiswa').onSnapshot(snapshot => {
+          databaseSiswa = [];
+          snapshot.forEach(doc => {
+            databaseSiswa.push(doc.data());
+          });
+          renderDataSiswaTable();
+          renderDataSiswaList();
+          renderProfilePengisiToday();
+          renderHome(); // Update Home dashboard jika diperlukan
         });
 
         // Load dataKeterlambatan
-        let dataKetSnapshot = await db.collection('dataKeterlambatan').get();
-        dataKeterlambatan = [];
-        dataKetSnapshot.forEach(doc => {
-          dataKeterlambatan.push(doc.data());
+        db.collection('dataKeterlambatan').onSnapshot(snapshot => {
+          dataKeterlambatan = [];
+          snapshot.forEach(doc => {
+            dataKeterlambatan.push(doc.data());
+          });
+          renderDataKeterlambatanTable();
+          renderTerlambatTable();
+          renderHome(); // Update Home dashboard jika diperlukan
         });
 
         // Load currentPengisi
-        let pengisiDoc = await db.collection('currentPengisi').doc('pengisi').get();
-        currentPengisi = pengisiDoc.exists ? pengisiDoc.data().nama : "";
+        db.collection('currentPengisi').doc('pengisi').onSnapshot(doc => {
+          currentPengisi = doc.exists ? doc.data().nama : "";
+          renderProfilePengisiToday();
+          renderHome(); // Update Home dashboard jika diperlukan
+        });
 
         console.log("Data berhasil dimuat dari Firestore.");
       } catch (error) {
@@ -810,47 +792,44 @@
       }
     }
 
-    async function clearCollection(collectionName) {
-      const snapshot = await db.collection(collectionName).get();
-      const batch = db.batch();
-      snapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-      await batch.commit();
-    }
-
     /********************************************************
      *          FUNGSI ARCHIVE DATA MINGGUAN
      ********************************************************/
     async function archiveWeeklyData() {
       try {
-        // Assuming 'settings' collection has a 'lastArchiveDate' field
+        // Mendapatkan tanggal terakhir arsip
         let settingsDoc = await db.collection('settings').doc('archiveDate').get();
         let lastArchiveDate = settingsDoc.exists ? settingsDoc.data().lastArchiveDate.toDate() : null;
         let today = new Date();
 
         if(!lastArchiveDate) {
-          // If never archived, set to today
+          // Jika belum pernah diarsipkan, set ke hari ini
           await db.collection('settings').doc('archiveDate').set({ lastArchiveDate: firebase.firestore.FieldValue.serverTimestamp() });
           return;
         }
 
-        // Calculate difference in weeks
+        // Hitung perbedaan minggu
         let diffTime = today - lastArchiveDate;
         let diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
 
         if(diffWeeks >=1){
           // Pindahkan historyAbsensi ke archiveAbsensi
-          archiveAbsensi = archiveAbsensi.concat(historyAbsensi);
+          for(let record of historyAbsensi){
+            await db.collection('archiveAbsensi').add(record);
+          }
+          // Hapus semua historyAbsensi
+          let historySnapshot = await db.collection('historyAbsensi').get();
+          let batch = db.batch();
+          historySnapshot.forEach(doc => {
+            batch.delete(doc.ref);
+          });
+          await batch.commit();
           historyAbsensi = [];
 
           // Reset jumlah keterlambatan mingguan
           dataKeterlambatan.forEach(siswa => {
             siswa.terlambat_mingguan = 0;
           });
-
-          // Save data to Firestore
-          await saveData();
 
           // Update lastArchiveDate
           await db.collection('settings').doc('archiveDate').set({ lastArchiveDate: firebase.firestore.FieldValue.serverTimestamp() });
@@ -924,23 +903,16 @@
       }
       // Tambah
       let guru = {nama, hari};
-      petugasGuru.push(guru);
-      document.getElementById('guruNama').value = "";
-      document.getElementById('guruHari').value = "";
       try {
         await db.collection('petugasGuru').add(guru);
         alert(`Ditambahkan: ${nama} (hari: ${hari})`);
-        renderPetugasGuruTable();
-        renderProfileGuru();
-        renderProfilePengisiToday();
-        renderHome(); // Update Home dashboard jika diperlukan
       } catch (error) {
         console.error("Error menambah petugas guru:", error);
         alert("Terjadi kesalahan saat menambah petugas guru.");
       }
     }
 
-    async function renderPetugasGuruTable() {
+    function renderPetugasGuruTable() {
       let tbody = document.getElementById('petugasGuruTable');
       tbody.innerHTML = "";
 
@@ -955,14 +927,14 @@
         // Tombol Edit
         let btnEdit = document.createElement('button');
         btnEdit.textContent = "Edit";
-        btnEdit.onclick = () => openEditGuruModal(index);
+        btnEdit.onclick = () => openEditGuruModal(item);
         btnEdit.classList.add('btn-secondary');
 
         // Tombol Hapus
         let btnHapus = document.createElement('button');
         btnHapus.textContent = "Hapus";
         btnHapus.classList.add('btn-danger');
-        btnHapus.onclick = () => hapusPetugasGuru(index);
+        btnHapus.onclick = () => hapusPetugasGuru(item);
 
         tdAksi.appendChild(btnEdit);
         tdAksi.appendChild(btnHapus);
@@ -974,21 +946,14 @@
       });
     }
 
-    async function hapusPetugasGuru(index){
-      if(!confirm(`Hapus guru piket: ${petugasGuru[index].nama} pada hari ${petugasGuru[index].hari}?`)) return;
-      let guru = petugasGuru[index];
+    async function hapusPetugasGuru(guru) {
+      if(!confirm(`Hapus guru piket: ${guru.nama} pada hari ${guru.hari}?`)) return;
       try {
-        // Find and delete from Firestore
+        // Cari dan hapus dari Firestore
         let snapshot = await db.collection('petugasGuru').where('nama', '==', guru.nama).where('hari', '==', guru.hari).get();
         snapshot.forEach(doc => {
           db.collection('petugasGuru').doc(doc.id).delete();
         });
-        // Remove from local array
-        petugasGuru.splice(index,1);
-        renderPetugasGuruTable();
-        renderProfileGuru();
-        renderProfilePengisiToday();
-        renderHome(); // Update Home dashboard jika diperlukan
         alert("Guru piket dihapus!");
       } catch (error) {
         console.error("Error menghapus petugas guru:", error);
@@ -1002,7 +967,11 @@
     // Modal Elements
     const editGuruModal = document.getElementById('editGuruModal');
 
-    function openEditGuruModal(index){
+    function openEditGuruModal(guru) {
+      // Cari indeks guru di array
+      let index = petugasGuru.findIndex(g => g.nama === guru.nama && g.hari === guru.hari);
+      if(index === -1) return;
+
       document.getElementById('editGuruIndex').value = index;
       document.getElementById('editGuruNama').value = petugasGuru[index].nama;
       document.getElementById('editGuruHari').value = petugasGuru[index].hari;
@@ -1038,19 +1007,12 @@
       }
       // Update Firestore
       try {
-        // Find the Firestore document
-        let guru = petugasGuru[index];
-        let snapshot = await db.collection('petugasGuru').where('nama', '==', guru.nama).where('hari', '==', guru.hari).get();
+        // Cari dan update di Firestore
+        let snapshot = await db.collection('petugasGuru').where('nama', '==', petugasGuru[index].nama).where('hari', '==', petugasGuru[index].hari).get();
         snapshot.forEach(doc => {
           db.collection('petugasGuru').doc(doc.id).update({nama, hari});
         });
-        // Update local array
-        petugasGuru[index] = {nama, hari};
         closeEditGuruModal();
-        renderPetugasGuruTable();
-        renderProfileGuru();
-        renderProfilePengisiToday();
-        renderHome(); // Update Home dashboard jika diperlukan
         alert("Data guru piket diperbarui!");
       } catch (error) {
         console.error("Error memperbarui guru piket:", error);
@@ -1079,16 +1041,14 @@
       }
       // Tambah siswa
       let siswa = {nama, kelas, nis, waliKelas};
-      databaseSiswa.push(siswa);
       try {
         await db.collection('databaseSiswa').add(siswa);
+        alert("Siswa berhasil ditambahkan!");
+        // Reset form
         document.getElementById('dataSiswaNama').value = "";
         document.getElementById('dataSiswaKelas').value = "";
         document.getElementById('dataSiswaNIS').value = "";
         document.getElementById('dataSiswaWaliKelas').value = "";
-        renderDataSiswaTable();
-        renderDataSiswaList(); // Update datalist untuk autocomplete
-        alert("Siswa berhasil ditambahkan!");
       } catch (error) {
         console.error("Error menambah siswa:", error);
         alert("Terjadi kesalahan saat menambah siswa.");
@@ -1124,14 +1084,13 @@
     /********************************************************
      *      MODIFIKASI FUNGSI RENDER DATA SISWA
      ********************************************************/
-    async function renderDataSiswaTable(filteredData = null){
+    function renderDataSiswaTable(filteredData = null){
       let tbody = document.getElementById('dataSiswaTable');
       tbody.innerHTML = "";
 
       let dataToRender = filteredData || databaseSiswa;
 
-      for(let index = 0; index < dataToRender.length; index++){
-        let siswa = dataToRender[index];
+      dataToRender.forEach((siswa, index) => {
         let tr = document.createElement('tr');
 
         // Checkbox
@@ -1169,21 +1128,21 @@
         // Tombol Edit
         let btnEdit = document.createElement('button');
         btnEdit.textContent = "Ubah";
-        btnEdit.onclick = () => editSiswa(index);
+        btnEdit.onclick = () => editSiswa(siswa);
         btnEdit.classList.add('btn-secondary');
 
         // Tombol Hapus
         let btnHapus = document.createElement('button');
         btnHapus.textContent = "Hapus";
         btnHapus.classList.add('btn-danger');
-        btnHapus.onclick = () => hapusSiswa(index);
+        btnHapus.onclick = () => hapusSiswa(siswa);
 
         tdAksi.appendChild(btnEdit);
         tdAksi.appendChild(btnHapus);
 
         tr.appendChild(tdAksi);
         tbody.appendChild(tr);
-      }
+      });
     }
 
     // Fungsi untuk memperbarui datalist untuk autocomplete
@@ -1197,8 +1156,7 @@
       });
     }
 
-    async function editSiswa(index){
-      let siswa = databaseSiswa[index];
+    async function editSiswa(siswa){
       let newNama = prompt("Masukkan nama baru siswa:", siswa.nama);
       if(newNama === null) return; // Cancel
       newNama = newNama.trim();
@@ -1228,8 +1186,9 @@
         return;
       }
       // Cek duplikat
-      let dupe = databaseSiswa.some((s, i) => 
-        (s.nama.toLowerCase() === newNama.toLowerCase() || s.nis.toLowerCase() === newNIS.toLowerCase()) && i !== index
+      let dupe = databaseSiswa.some((s) => 
+        (s.nama.toLowerCase() === newNama.toLowerCase() || s.nis.toLowerCase() === newNIS.toLowerCase()) &&
+        !(s.nama === siswa.nama && s.nis === siswa.nis)
       );
       if(dupe){
         alert("Siswa dengan nama atau NIS tersebut sudah ada!");
@@ -1237,15 +1196,11 @@
       }
       // Update Firestore
       try {
-        // Find and update the document
+        // Cari dan update di Firestore
         let snapshot = await db.collection('databaseSiswa').where('nama', '==', siswa.nama).where('nis', '==', siswa.nis).get();
         snapshot.forEach(doc => {
           db.collection('databaseSiswa').doc(doc.id).update({nama: newNama, kelas: newKelas, nis: newNIS, waliKelas: newWaliKelas});
         });
-        // Update local array
-        databaseSiswa[index] = {nama: newNama, kelas: newKelas, nis: newNIS, waliKelas: newWaliKelas};
-        renderDataSiswaTable();
-        renderDataSiswaList(); // Update datalist untuk autocomplete
         alert("Data siswa diperbarui!");
       } catch (error) {
         console.error("Error memperbarui siswa:", error);
@@ -1253,10 +1208,8 @@
       }
     }
 
-    async function hapusSiswa(index){
-      if(!confirm(`Hapus data siswa: ${databaseSiswa[index].nama} dari kelas ${databaseSiswa[index].kelas}?`)) return;
-      let siswa = databaseSiswa[index];
-      let namaLower = siswa.nama.toLowerCase();
+    async function hapusSiswa(siswa){
+      if(!confirm(`Hapus data siswa: ${siswa.nama} dari kelas ${siswa.kelas}?`)) return;
       try {
         // Hapus dari Firestore databaseSiswa
         let snapshot = await db.collection('databaseSiswa').where('nama', '==', siswa.nama).where('nis', '==', siswa.nis).get();
@@ -1286,20 +1239,7 @@
           db.collection('petugasSiswa').doc(doc.id).delete();
         });
 
-        // Hapus dari local array
-        let deletedNama = databaseSiswa[index].nama;
-        databaseSiswa.splice(index,1);
-        petugasSiswa = petugasSiswa.filter(s => s.toLowerCase() !== namaLower);
-        renderDataSiswaList(); // Update datalist untuk autocomplete
-        recalcDataSiswaFromHistory();
-        renderHistoryTable();
-        renderDataKeterlambatanTable();
-        renderTerlambatTable();
-        renderDataSiswaTable();
-        renderProfileSiswa();
-        saveData();
-        renderHome(); // Update Home dashboard jika diperlukan
-        alert(`Data siswa "${deletedNama}" dihapus!`);
+        alert(`Data siswa "${siswa.nama}" dihapus!`);
       } catch (error) {
         console.error("Error menghapus siswa:", error);
         alert("Terjadi kesalahan saat menghapus siswa.");
@@ -1325,15 +1265,19 @@
       }
       petugasSiswa = [s1, s2];
       try {
-        // Clear existing petugasSiswa
-        await clearCollection('petugasSiswa');
-        // Save new petugasSiswa
+        // Hapus semua petugasSiswa sebelumnya
+        let existingPetugas = await db.collection('petugasSiswa').get();
+        let batch = db.batch();
+        existingPetugas.forEach(doc => {
+          batch.delete(doc.ref);
+        });
+        await batch.commit();
+
+        // Simpan petugasSiswa baru
         for(let s of petugasSiswa){
           await db.collection('petugasSiswa').add({nama: s});
         }
         alert("Petugas Siswa => "+petugasSiswa.join(" & "));
-        renderProfileSiswa();
-        renderHome(); // Update Home dashboard jika diperlukan
         document.getElementById('siswa1').value = "";
         document.getElementById('siswa2').value = "";
       } catch (error) {
@@ -1343,7 +1287,7 @@
     }
 
     /********************************************************
-     *      REKALKULASI dataSiswa
+     *      REKALKULASI DATA SISWA
      ********************************************************/
     function recalcDataSiswaFromHistory() {
       dataSiswa = {};
@@ -1407,7 +1351,7 @@
         return;
       }
 
-      // cek duplikat
+      // Cek duplikat di Firestore
       let historySnapshot = await db.collection('historyAbsensi').where('nama', '==', rawNama).where('tanggal', '==', tanggal).get();
       let archiveSnapshot = await db.collection('archiveAbsensi').where('nama', '==', rawNama).where('tanggal', '==', tanggal).get();
       if(!historySnapshot.empty || !archiveSnapshot.empty){
@@ -1433,7 +1377,7 @@
         finalAlasan = alasan || "-";
       }
 
-      // catat
+      // Catat absensi
       let record = {
         nama: rawNama, // Simpan dengan format asli
         tanggal,
@@ -1444,9 +1388,9 @@
 
       try {
         await db.collection('historyAbsensi').add(record);
-        historyAbsensi.push(record);
+        alert("Data absensi tersimpan!");
 
-        // Update dataKeterlambatan hanya jika status adalah 'late'
+        // Update keterlambatan jika status late
         if(statusKedatangan === "late"){
           let keterlambatan = dataKeterlambatan.find(k => k.nama.toLowerCase() === namaSiswa);
           if(keterlambatan){
@@ -1461,7 +1405,6 @@
               nama: rawNama,
               terlambat_total: 1
             };
-            dataKeterlambatan.push(newKeterlambatan);
             await db.collection('dataKeterlambatan').add(newKeterlambatan);
           }
 
@@ -1473,18 +1416,7 @@
           }
         }
 
-        recalcDataSiswaFromHistory();
-        renderHistoryTable();
-        renderDataKeterlambatanTable();
-        renderTerlambatTable();
-        renderDataSiswaTable();
-        saveData();
-
-        let box = document.getElementById('absensiStatus');
-        box.style.display="block";
-        box.textContent=`Data tersimpan: ${rawNama}, ${tanggal}, ${statusKedatangan}, Pengisi=${currentPengisi||"-"}`;
-
-        // reset
+        // Reset form
         document.getElementById('namaSiswa').value="";
         document.getElementById('tanggalAbsen').value="";
         statusSelect.value = "";
@@ -1492,6 +1424,8 @@
         document.getElementById('alasanCustom').value = "";
         document.getElementById('alasanCustomContainer').style.display = "none";
 
+        // Update UI
+        renderHome();
       } catch (error) {
         console.error("Error mencatat absensi:", error);
         alert("Terjadi kesalahan saat mencatat absensi.");
@@ -1518,7 +1452,7 @@
       let tbody = document.getElementById('historyTableBody');
       tbody.innerHTML="";
 
-      let dataToRender = filteredData || (await fetchAllHistoryAbsensi());
+      let dataToRender = filteredData || (historyAbsensi.concat(archiveAbsensi));
 
       dataToRender.forEach((item,index)=>{
         let tr=document.createElement('tr');
@@ -1541,7 +1475,7 @@
           <option value="izin" ${item.status === "izin" ? "selected" : ""}>Izin</option>
           <option value="dipulangkan" ${item.status === "dipulangkan" ? "selected" : ""}>Dipulangkan</option>
         `;
-        selectStatus.onchange = () => updateStatusHistory(index, selectStatus.value);
+        selectStatus.onchange = () => updateStatusHistory(item, selectStatus.value);
         tdStatus.appendChild(selectStatus);
         tr.appendChild(tdStatus);
 
@@ -1560,12 +1494,12 @@
         let btnE=document.createElement('button');
         btnE.textContent="Edit Tanggal";
         btnE.classList.add('btn-secondary');
-        btnE.onclick=()=>editRiwayatTanggal(index);
+        btnE.onclick=()=>editRiwayatTanggal(item);
 
         let btnH=document.createElement('button');
         btnH.textContent="Hapus";
         btnH.classList.add('btn-danger');
-        btnH.onclick=()=>deleteRiwayat(index);
+        btnH.onclick=()=>deleteRiwayat(item);
 
         tdAksi.appendChild(btnE);
         tdAksi.appendChild(btnH);
@@ -1575,149 +1509,78 @@
       });
     }
 
-    async function fetchAllHistoryAbsensi(){
-      let snapshot = await db.collection('historyAbsensi').get();
-      let combinedData = [];
-      snapshot.forEach(doc => {
-        combinedData.push(doc.data());
-      });
-      // Also fetch archiveAbsensi
-      let archiveSnapshot = await db.collection('archiveAbsensi').get();
-      archiveSnapshot.forEach(doc => {
-        combinedData.push(doc.data());
-      });
-      return combinedData;
-    }
-
-    async function updateStatusHistory(index, newStatus){
+    async function updateStatusHistory(item, newStatus){
       try {
-        // Determine if the index is in historyAbsensi or archiveAbsensi
-        if(index < historyAbsensi.length){
-          // Update in Firestore
-          let record = historyAbsensi[index];
-          let snapshot = await db.collection('historyAbsensi').where('nama', '==', record.nama).where('tanggal', '==', record.tanggal).get();
-          snapshot.forEach(doc => {
-            db.collection('historyAbsensi').doc(doc.id).update({status: newStatus});
-          });
-          // Update local array
-          historyAbsensi[index].status = newStatus;
-        } else {
-          let archiveIndex = index - historyAbsensi.length;
-          let record = archiveAbsensi[archiveIndex];
-          let snapshot = await db.collection('archiveAbsensi').where('nama', '==', record.nama).where('tanggal', '==', record.tanggal).get();
-          snapshot.forEach(doc => {
-            db.collection('archiveAbsensi').doc(doc.id).update({status: newStatus});
-          });
-          // Update local array
-          archiveAbsensi[archiveIndex].status = newStatus;
+        // Update status di Firestore
+        let collectionName = 'historyAbsensi';
+        let snapshot = await db.collection(collectionName).where('nama', '==', item.nama).where('tanggal', '==', item.tanggal).get();
+        if(snapshot.empty){
+          // Cek di archiveAbsensi
+          collectionName = 'archiveAbsensi';
+          snapshot = await db.collection(collectionName).where('nama', '==', item.nama).where('tanggal', '==', item.tanggal).get();
         }
-        // Recalculate data
-        recalcDataSiswaFromHistory();
-        renderHistoryTable();
-        renderDataKeterlambatanTable();
-        renderTerlambatTable();
-        saveData();
+        snapshot.forEach(doc => {
+          db.collection(collectionName).doc(doc.id).update({status: newStatus});
+        });
+
+        // Alert sukses
         alert("Status absensi berhasil diperbarui!");
-        renderHome(); // Update Home dashboard jika diperlukan
+
+        // Update UI
+        renderHome();
       } catch (error) {
         console.error("Error memperbarui status absensi:", error);
         alert("Terjadi kesalahan saat memperbarui status absensi.");
       }
     }
 
-    async function editRiwayatTanggal(index){
-      let oldDate;
-      // Tentukan apakah data berada di history atau archive
-      if(index < historyAbsensi.length){
-        oldDate = historyAbsensi[index].tanggal;
-      } else {
-        oldDate = archiveAbsensi[index - historyAbsensi.length].tanggal;
-      }
-
+    async function editRiwayatTanggal(item){
+      let oldDate = item.tanggal;
       let newDate=prompt("Tanggal baru (YYYY-MM-DD):",oldDate);
-      if(newDate&&newDate!==oldDate){
+      if(newDate && newDate !== oldDate){
         // Validasi siswa masih ada
-        let namaSiswa;
-        if(index < historyAbsensi.length){
-          namaSiswa = historyAbsensi[index].nama.toLowerCase();
-        } else {
-          namaSiswa = archiveAbsensi[index - historyAbsensi.length].nama.toLowerCase();
-        }
-
-        let siswaExists = databaseSiswa.some(s => s.nama.toLowerCase() === namaSiswa);
+        let namaLower = item.nama.toLowerCase();
+        let siswaExists = databaseSiswa.some(s => s.nama.toLowerCase() === namaLower);
         if(!siswaExists){
           alert("Siswa tidak ditemukan di database. Silakan tambahkan siswa di menu Data Siswa.");
           return;
         }
 
         try {
-          if(index < historyAbsensi.length){
-            // Update in Firestore
-            let record = historyAbsensi[index];
-            let snapshot = await db.collection('historyAbsensi').where('nama', '==', record.nama).where('tanggal', '==', record.tanggal).get();
-            snapshot.forEach(doc => {
-              db.collection('historyAbsensi').doc(doc.id).update({tanggal: newDate});
-            });
-            // Update local array
-            historyAbsensi[index].tanggal = newDate;
-          } else {
-            let archiveIndex = index - historyAbsensi.length;
-            let record = archiveAbsensi[archiveIndex];
-            let snapshot = await db.collection('archiveAbsensi').where('nama', '==', record.nama).where('tanggal', '==', record.tanggal).get();
-            snapshot.forEach(doc => {
-              db.collection('archiveAbsensi').doc(doc.id).update({tanggal: newDate});
-            });
-            // Update local array
-            archiveAbsensi[archiveIndex].tanggal = newDate;
+          // Update di Firestore
+          let collectionName = 'historyAbsensi';
+          let snapshot = await db.collection(collectionName).where('nama', '==', item.nama).where('tanggal', '==', item.tanggal).get();
+          if(snapshot.empty){
+            // Cek di archiveAbsensi
+            collectionName = 'archiveAbsensi';
+            snapshot = await db.collection(collectionName).where('nama', '==', item.nama).where('tanggal', '==', item.tanggal).get();
           }
+          snapshot.forEach(doc => {
+            db.collection(collectionName).doc(doc.id).update({tanggal: newDate});
+          });
 
-          recalcDataSiswaFromHistory();
-          renderHistoryTable();
-          renderDataKeterlambatanTable();
-          renderTerlambatTable();
-          saveData();
           alert("Tanggal berhasil diubah!");
-          renderHome(); // Update Home dashboard jika diperlukan
         } catch (error) {
           console.error("Error mengubah tanggal absensi:", error);
           alert("Terjadi kesalahan saat mengubah tanggal absensi.");
         }
       }
     }
-    async function deleteRiwayat(index){
+
+    async function deleteRiwayat(item){
       try {
-        let rec;
-        if(index < historyAbsensi.length){
-          rec = historyAbsensi[index];
-          // Hapus dari Firestore
-          let snapshot = await db.collection('historyAbsensi').where('nama', '==', rec.nama).where('tanggal', '==', rec.tanggal).get();
-          snapshot.forEach(doc => {
-            db.collection('historyAbsensi').doc(doc.id).delete();
-          });
-          // Hapus dari local array
-          historyAbsensi.splice(index,1);
-        } else {
-          let archiveIndex = index - historyAbsensi.length;
-          rec = archiveAbsensi[archiveIndex];
-          // Hapus dari Firestore
-          let snapshot = await db.collection('archiveAbsensi').where('nama', '==', rec.nama).where('tanggal', '==', rec.tanggal).get();
-          snapshot.forEach(doc => {
-            db.collection('archiveAbsensi').doc(doc.id).delete();
-          });
-          // Hapus dari local array
-          archiveAbsensi.splice(archiveIndex,1);
+        let collectionName = 'historyAbsensi';
+        let snapshot = await db.collection(collectionName).where('nama', '==', item.nama).where('tanggal', '==', item.tanggal).get();
+        if(snapshot.empty){
+          // Cek di archiveAbsensi
+          collectionName = 'archiveAbsensi';
+          snapshot = await db.collection(collectionName).where('nama', '==', item.nama).where('tanggal', '==', item.tanggal).get();
         }
+        snapshot.forEach(doc => {
+          db.collection(collectionName).doc(doc.id).delete();
+        });
 
-        // Hapus dari dataKeterlambatan
-        dataKeterlambatan = dataKeterlambatan.filter(k => k.nama.toLowerCase() !== rec.nama.toLowerCase());
-
-        recalcDataSiswaFromHistory();
-        renderHistoryTable();
-        renderDataKeterlambatanTable();
-        renderTerlambatTable();
-        saveData();
         alert("Data absensi terhapus!");
-        renderHome(); // Update Home dashboard jika diperlukan
       } catch (error) {
         console.error("Error menghapus absensi:", error);
         alert("Terjadi kesalahan saat menghapus absensi.");
@@ -1727,7 +1590,7 @@
     /********************************************************
      *      RENDER TABEL DATA KETERLAMBATAN
      ********************************************************/
-    async function renderDataKeterlambatanTable(){
+    function renderDataKeterlambatanTable(){
       let tbody = document.getElementById('dataKeterlambatanTable');
       tbody.innerHTML = "";
 
@@ -1743,13 +1606,13 @@
         // Tombol Reset
         let btnReset = document.createElement('button');
         btnReset.textContent = "Reset";
-        btnReset.onclick = () => resetKeterlambatan(index);
+        btnReset.onclick = () => resetKeterlambatan(siswa);
         btnReset.classList.add('btn-danger');
 
         // Tombol Hapus
         let btnHapus = document.createElement('button');
         btnHapus.textContent = "Hapus";
-        btnHapus.onclick = () => hapusKeterlambatan(index);
+        btnHapus.onclick = () => hapusKeterlambatan(siswa);
         btnHapus.classList.add('btn-danger');
 
         tdAksi.appendChild(btnReset);
@@ -1763,47 +1626,30 @@
       });
     }
 
-    async function resetKeterlambatan(index){
-      if(!confirm(`Reset jumlah keterlambatan siswa: ${dataKeterlambatan[index].nama}?`)) return;
-      let namaLower = dataKeterlambatan[index].nama.toLowerCase();
+    async function resetKeterlambatan(siswa){
+      if(!confirm(`Reset jumlah keterlambatan siswa: ${siswa.nama}?`)) return;
       try {
         // Update Firestore
-        let snapshot = await db.collection('dataKeterlambatan').where('nama', '==', dataKeterlambatan[index].nama).get();
+        let snapshot = await db.collection('dataKeterlambatan').where('nama', '==', siswa.nama).get();
         snapshot.forEach(doc => {
           db.collection('dataKeterlambatan').doc(doc.id).update({terlambat_total: 0});
         });
-        // Reset keterlambatan_total di local array
-        dataKeterlambatan[index].terlambat_total = 0;
-        // Reset keterlambatan_total di dataSiswa
-        if(dataSiswa[dataKeterlambatan[index].nama]){
-          dataSiswa[dataKeterlambatan[index].nama].terlambat_total = 0;
-        }
-        renderDataKeterlambatanTable();
-        renderTerlambatTable();
-        saveData();
-        alert(`Jumlah keterlambatan siswa "${dataKeterlambatan[index].nama}" telah direset.`);
-        renderHome(); // Update Home dashboard jika diperlukan
+        alert(`Jumlah keterlambatan siswa "${siswa.nama}" telah direset.`);
       } catch (error) {
         console.error("Error mereset keterlambatan:", error);
         alert("Terjadi kesalahan saat mereset keterlambatan.");
       }
     }
 
-    async function hapusKeterlambatan(index){
-      if(!confirm(`Hapus data keterlambatan siswa: ${dataKeterlambatan[index].nama}?`)) return;
+    async function hapusKeterlambatan(siswa){
+      if(!confirm(`Hapus data keterlambatan siswa: ${siswa.nama}?`)) return;
       try {
         // Hapus dari Firestore
-        let snapshot = await db.collection('dataKeterlambatan').where('nama', '==', dataKeterlambatan[index].nama).get();
+        let snapshot = await db.collection('dataKeterlambatan').where('nama', '==', siswa.nama).get();
         snapshot.forEach(doc => {
           db.collection('dataKeterlambatan').doc(doc.id).delete();
         });
-        // Hapus dari local array
-        dataKeterlambatan.splice(index,1);
-        renderDataKeterlambatanTable();
-        renderTerlambatTable();
-        saveData();
         alert("Data keterlambatan siswa dihapus dari Data Keterlambatan.");
-        renderHome(); // Update Home dashboard jika diperlukan
       } catch (error) {
         console.error("Error menghapus keterlambatan:", error);
         alert("Terjadi kesalahan saat menghapus keterlambatan.");
@@ -1814,26 +1660,13 @@
       if(!confirm("Yakin reset semua keterlambatan siswa?")) return;
       try {
         // Reset semua keterlambatan di Firestore
-        for(let keterlambatan of dataKeterlambatan){
-          let snapshot = await db.collection('dataKeterlambatan').where('nama', '==', keterlambatan.nama).get();
-          snapshot.forEach(doc => {
-            db.collection('dataKeterlambatan').doc(doc.id).update({terlambat_total: 0});
-          });
-          keterlambatan.terlambat_total = 0;
-        }
-
-        // Reset keterlambatan_total di dataSiswa
-        for(let nama in dataSiswa){
-          if(dataSiswa[nama].terlambat_total > 0){
-            dataSiswa[nama].terlambat_total = 0;
-          }
-        }
-
-        renderDataKeterlambatanTable();
-        renderTerlambatTable();
-        saveData();
+        let keterlambatanSnapshot = await db.collection('dataKeterlambatan').get();
+        let batch = db.batch();
+        keterlambatanSnapshot.forEach(doc => {
+          batch.update(doc.ref, {terlambat_total: 0});
+        });
+        await batch.commit();
         alert("Semua keterlambatan siswa telah direset.");
-        renderHome(); // Update Home dashboard jika diperlukan
       } catch (error) {
         console.error("Error mereset semua keterlambatan:", error);
         alert("Terjadi kesalahan saat mereset semua keterlambatan.");
@@ -1849,9 +1682,16 @@
         alert("Pilih tanggal terlebih dahulu!");
         return;
       }
-      // Fetch data from Firestore
-      let combinedData = await fetchAllHistoryAbsensi();
-      let filtered = combinedData.filter(item => item.tanggal === date);
+      // Fetch data dari Firestore
+      let historySnapshot = await db.collection('historyAbsensi').where('tanggal', '==', date).get();
+      let archiveSnapshot = await db.collection('archiveAbsensi').where('tanggal', '==', date).get();
+      let filtered = [];
+      historySnapshot.forEach(doc => {
+        filtered.push(doc.data());
+      });
+      archiveSnapshot.forEach(doc => {
+        filtered.push(doc.data());
+      });
       renderHistoryTable(filtered);
       displayFilterResult(`Tampilkan data absensi tanggal ${date}`, filtered.length);
     }
@@ -1867,9 +1707,16 @@
         alert("Tanggal mulai tidak boleh lebih besar dari tanggal akhir!");
         return;
       }
-      // Fetch data from Firestore
-      let combinedData = await fetchAllHistoryAbsensi();
-      let filtered = combinedData.filter(item => item.tanggal >= startDate && item.tanggal <= endDate);
+      // Fetch data dari Firestore
+      let historySnapshot = await db.collection('historyAbsensi').where('tanggal', '>=', startDate).where('tanggal', '<=', endDate).get();
+      let archiveSnapshot = await db.collection('archiveAbsensi').where('tanggal', '>=', startDate).where('tanggal', '<=', endDate).get();
+      let filtered = [];
+      historySnapshot.forEach(doc => {
+        filtered.push(doc.data());
+      });
+      archiveSnapshot.forEach(doc => {
+        filtered.push(doc.data());
+      });
       renderHistoryTable(filtered);
       displayFilterResult(`Tampilkan data absensi dari ${startDate} sampai ${endDate}`, filtered.length);
     }
@@ -1910,7 +1757,7 @@
       let statistikBulan = document.getElementById('statistikBulan').value;
 
       // Menggabungkan data dari historyAbsensi dan archiveAbsensi
-      let combinedData = await fetchAllHistoryAbsensi();
+      let combinedData = historyAbsensi.concat(archiveAbsensi);
 
       if(option === "siswa"){
         if(statistikBulan){
@@ -2045,8 +1892,8 @@
             datasets: [{
               label: chartTitle,
               data: values,
-              backgroundColor: 'rgba(255,99,132,0.2)',
-              borderColor: 'rgba(255,99,132,1)',
+              backgroundColor: 'rgba(46, 204, 113, 0.2)',
+              borderColor: 'rgba(46, 204, 113, 1)',
               borderWidth: 2,
               fill: true,
               tension: 0.3
@@ -2154,7 +2001,6 @@
 
           // Tambah siswa
           let siswa = {nama, kelas, nis, waliKelas};
-          databaseSiswa.push(siswa);
           try {
             await db.collection('databaseSiswa').add(siswa);
             importedCount++;
@@ -2164,8 +2010,6 @@
         }
 
         if(importedCount > 0){
-          renderDataSiswaTable();
-          renderDataSiswaList(); // Update datalist untuk autocomplete
           alert(`${importedCount} data siswa berhasil diimpor.`);
         } else {
           alert("Tidak ada data siswa yang diimpor. Pastikan file tidak kosong atau data sudah ada di database.");
@@ -2192,16 +2036,16 @@
 
       try {
         // Filter data untuk bulan tersebut dari archiveAbsensi dan historyAbsensi
-        let filteredHistory = await db.collection('historyAbsensi').where('tanggal', '>=', `${month}-01`).where('tanggal', '<=', `${month}-31`).get();
-        let filteredArchive = await db.collection('archiveAbsensi').where('tanggal', '>=', `${month}-01`).where('tanggal', '<=', `${month}-31`).get();
+        let historySnapshot = await db.collection('historyAbsensi').where('tanggal', '>=', `${month}-01`).where('tanggal', '<=', `${month}-31`).get();
+        let archiveSnapshot = await db.collection('archiveAbsensi').where('tanggal', '>=', `${month}-01`).where('tanggal', '<=', `${month}-31`).get();
         let filtered = [];
-        filteredHistory.forEach(doc => {
+        historySnapshot.forEach(doc => {
           let data = doc.data();
           if(['late','izin','dipulangkan'].includes(data.status)){
             filtered.push(data);
           }
         });
-        filteredArchive.forEach(doc => {
+        archiveSnapshot.forEach(doc => {
           let data = doc.data();
           if(['late','izin','dipulangkan'].includes(data.status)){
             filtered.push(data);
@@ -2255,7 +2099,7 @@
     }
 
     // Tampilkan data guru di table, diurut hari senin-sabtu
-    async function renderProfileGuru(){
+    function renderProfileGuru(){
       let sorted = [...petugasGuru];
       // Sort by day index
       sorted.sort((a,b)=> dayOrder.indexOf(a.hari) - dayOrder.indexOf(b.hari));
@@ -2273,14 +2117,14 @@
         // Tombol Edit di Profile
         let btnEdit = document.createElement('button');
         btnEdit.textContent = "Edit";
-        btnEdit.onclick = () => openEditGuruModal(index);
+        btnEdit.onclick = () => openEditGuruModal(item);
         btnEdit.classList.add('btn-secondary');
 
         // Tombol Hapus di Profile
         let btnHapus = document.createElement('button');
         btnHapus.textContent = "Hapus";
+        btnHapus.onclick = () => hapusPetugasGuru(item);
         btnHapus.classList.add('btn-danger');
-        btnHapus.onclick = () => hapusPetugasGuru(index);
 
         tdAksi.appendChild(btnEdit);
         tdAksi.appendChild(btnHapus);
@@ -2303,7 +2147,7 @@
     }
 
     // Menampilkan dropdown Pengisi => hanya guru sesuai hari aktual
-    async function renderProfilePengisiToday(){
+    function renderProfilePengisiToday(){
       let dayName = getTodayDayName(); // ex "Selasa"
       document.getElementById('hariAktualSpan').textContent= dayName || "(Minggu)";
 
@@ -2356,27 +2200,18 @@
       try {
         await db.collection('currentPengisi').doc('pengisi').set({nama: currentPengisi});
         alert("Pengisi saat ini => "+currentPengisi);
-        renderHome(); // Update Home dashboard jika diperlukan
       } catch (error) {
         console.error("Error menyimpan pengisi:", error);
         alert("Terjadi kesalahan saat menyimpan pengisi.");
       }
     }
 
-    // Return dayName from system date => dayOrder atau ""
+    // Return dayName dari sistem date => dayOrder atau ""
     function getTodayDayName(){
       let d=new Date();
       let dayNum=d.getDay(); // 0=Sun,1=Mon,2=Tue,...6=Sat
       if(dayNum===0||dayNum>6)return "";
       return dayOrder[dayNum-1]||"";
-    }
-
-    /********************************************************
-     *      FUNGSI RENDER TERLAMBAT TABLE (PERBAIKI ERROR)
-     ********************************************************/
-    function renderTerlambatTable(){
-      // Fungsi ini hanya alias untuk renderDataKeterlambatanTable
-      renderDataKeterlambatanTable();
     }
 
     /********************************************************
@@ -2392,7 +2227,7 @@
 
     async function renderAttendanceLineChart(){
       // Ambil bulan terakhir dari data
-      let combinedData = await fetchAllHistoryAbsensi();
+      let combinedData = historyAbsensi.concat(archiveAbsensi);
       if(combinedData.length === 0){
         // Tidak ada data absensi untuk membuat grafik
         let ctx = document.getElementById('chartAttendanceLine').getContext('2d');
@@ -2466,7 +2301,7 @@
       });
     }
 
-    async function renderTop5LateStudents(){
+    function renderTop5LateStudents(){
       let tbody = document.getElementById('dashboardTop5TableBody');
       tbody.innerHTML = "";
 
@@ -2518,8 +2353,7 @@
     /********************************************************
      *       FUNGSI ARCHIVE DATA MINGGUAN SECARA OTOMATIS
      ********************************************************/
-    // Memanggil init saat halaman dimuat
-    window.onload = init;
+    // Sudah diintegrasikan dalam loadData()
 
     /********************************************************
      *      FUNGSI HAPUS SEMUA & HAPUS PILIH SISWA DI DATA SISWA SCREEN
@@ -2534,7 +2368,6 @@
           batch.delete(doc.ref);
         });
         await batch.commit();
-        databaseSiswa = [];
 
         // Hapus semua petugasSiswa
         let petugasSnapshot = await db.collection('petugasSiswa').get();
@@ -2543,7 +2376,6 @@
           batchPetugas.delete(doc.ref);
         });
         await batchPetugas.commit();
-        petugasSiswa = [];
 
         // Hapus semua historyAbsensi
         let historySnapshot = await db.collection('historyAbsensi').get();
@@ -2552,7 +2384,6 @@
           batchHistory.delete(doc.ref);
         });
         await batchHistory.commit();
-        historyAbsensi = [];
 
         // Hapus semua archiveAbsensi
         let archiveSnapshot = await db.collection('archiveAbsensi').get();
@@ -2561,7 +2392,6 @@
           batchArchive.delete(doc.ref);
         });
         await batchArchive.commit();
-        archiveAbsensi = [];
 
         // Hapus semua dataKeterlambatan
         let keterlambatanSnapshot = await db.collection('dataKeterlambatan').get();
@@ -2570,7 +2400,6 @@
           batchKeterlambatan.delete(doc.ref);
         });
         await batchKeterlambatan.commit();
-        dataKeterlambatan = [];
 
         // Hapus semua petugasGuru
         let guruSnapshot = await db.collection('petugasGuru').get();
@@ -2579,21 +2408,11 @@
           batchGuru.delete(doc.ref);
         });
         await batchGuru.commit();
-        petugasGuru = [];
 
         // Hapus semua pengisi
         await db.collection('currentPengisi').doc('pengisi').set({nama: ""});
         currentPengisi = "";
 
-        recalcDataSiswaFromHistory();
-        renderHistoryTable();
-        renderDataKeterlambatanTable();
-        renderTerlambatTable();
-        renderDataSiswaTable();
-        renderProfileSiswa();
-        renderDataSiswaList(); // Update datalist untuk autocomplete
-        saveData();
-        renderHome(); // Update Home dashboard jika diperlukan
         alert("Semua data siswa telah dihapus!");
       } catch (error) {
         console.error("Error menghapus semua siswa:", error);
@@ -2610,62 +2429,43 @@
       }
       if(!confirm(`Apakah Anda yakin ingin menghapus ${checkboxes.length} siswa yang dipilih?`)) return;
 
-      // Ambil indeks siswa yang dipilih dan urutkan dari yang terbesar untuk menghindari masalah saat splice
-      let indices = Array.from(checkboxes).map(cb => parseInt(cb.value)).sort((a,b) => b - a);
-      let deletedNames = [];
+      // Ambil data siswa yang dipilih
+      let selectedIndices = Array.from(checkboxes).map(cb => parseInt(cb.value));
+      let selectedSiswa = selectedIndices.map(index => databaseSiswa[index]);
 
       try {
-        for(let index of indices){
-          let siswa = databaseSiswa[index];
-          if(siswa){
-            let namaLower = siswa.nama.toLowerCase();
+        // Hapus siswa dari Firestore
+        for(let siswa of selectedSiswa){
+          // Hapus dari databaseSiswa
+          let snapshot = await db.collection('databaseSiswa').where('nama', '==', siswa.nama).where('nis', '==', siswa.nis).get();
+          snapshot.forEach(doc => {
+            db.collection('databaseSiswa').doc(doc.id).delete();
+          });
 
-            // Hapus dari Firestore databaseSiswa
-            let snapshot = await db.collection('databaseSiswa').where('nama', '==', siswa.nama).where('nis', '==', siswa.nis).get();
-            snapshot.forEach(doc => {
-              db.collection('databaseSiswa').doc(doc.id).delete();
-            });
+          // Hapus dari historyAbsensi dan archiveAbsensi
+          let historySnapshot = await db.collection('historyAbsensi').where('nama', '==', siswa.nama).get();
+          historySnapshot.forEach(doc => {
+            db.collection('historyAbsensi').doc(doc.id).delete();
+          });
+          let archiveSnapshot = await db.collection('archiveAbsensi').where('nama', '==', siswa.nama).get();
+          archiveSnapshot.forEach(doc => {
+            db.collection('archiveAbsensi').doc(doc.id).delete();
+          });
 
-            // Hapus dari Firestore historyAbsensi dan archiveAbsensi
-            let historySnapshot = await db.collection('historyAbsensi').where('nama', '==', siswa.nama).get();
-            historySnapshot.forEach(doc => {
-              db.collection('historyAbsensi').doc(doc.id).delete();
-            });
-            let archiveSnapshot = await db.collection('archiveAbsensi').where('nama', '==', siswa.nama).get();
-            archiveSnapshot.forEach(doc => {
-              db.collection('archiveAbsensi').doc(doc.id).delete();
-            });
+          // Hapus dari dataKeterlambatan
+          let ketSnapshot = await db.collection('dataKeterlambatan').where('nama', '==', siswa.nama).get();
+          ketSnapshot.forEach(doc => {
+            db.collection('dataKeterlambatan').doc(doc.id).delete();
+          });
 
-            // Hapus dari Firestore dataKeterlambatan
-            let ketSnapshot = await db.collection('dataKeterlambatan').where('nama', '==', siswa.nama).get();
-            ketSnapshot.forEach(doc => {
-              db.collection('dataKeterlambatan').doc(doc.id).delete();
-            });
-
-            // Hapus dari Firestore petugasSiswa jika ada
-            let petugasSnapshot = await db.collection('petugasSiswa').where('nama', '==', siswa.nama).get();
-            petugasSnapshot.forEach(doc => {
-              db.collection('petugasSiswa').doc(doc.id).delete();
-            });
-
-            // Hapus dari local array
-            let deletedNama = databaseSiswa[index].nama;
-            databaseSiswa.splice(index,1);
-            petugasSiswa = petugasSiswa.filter(s => s.toLowerCase() !== namaLower);
-            deletedNames.push(deletedNama);
-          }
+          // Hapus dari petugasSiswa jika ada
+          let petugasSnapshot = await db.collection('petugasSiswa').where('nama', '==', siswa.nama).get();
+          petugasSnapshot.forEach(doc => {
+            db.collection('petugasSiswa').doc(doc.id).delete();
+          });
         }
 
-        renderDataSiswaList(); // Update datalist untuk autocomplete
-        recalcDataSiswaFromHistory();
-        renderHistoryTable();
-        renderDataKeterlambatanTable();
-        renderTerlambatTable();
-        renderDataSiswaTable();
-        renderProfileSiswa();
-        saveData();
-        renderHome(); // Update Home dashboard jika diperlukan
-        alert(`Data siswa yang dihapus: ${deletedNames.join(", ")}`);
+        alert(`Data siswa yang dihapus: ${selectedSiswa.map(s => s.nama).join(", ")}`);
       } catch (error) {
         console.error("Error menghapus siswa yang dipilih:", error);
         alert("Terjadi kesalahan saat menghapus siswa yang dipilih.");
@@ -2678,54 +2478,7 @@
     }
 
     /********************************************************
-     *      REKALKULASI DATA SISWA
-     ********************************************************/
-    function recalcDataSiswaFromHistory() {
-      dataSiswa = {};
-      let combinedData = historyAbsensi.concat(archiveAbsensi);
-      combinedData.forEach(record => {
-        let { tanggal, nama, status } = record;
-        if (!dataSiswa[nama]) {
-          dataSiswa[nama] = {
-            terlambat_total: 0,
-            terlambat_mingguan: 0,
-            last_date: ""
-          };
-        }
-        if (status === "late") {
-          dataSiswa[nama].terlambat_total++;
-          dataSiswa[nama].terlambat_mingguan++;
-          if (!dataSiswa[nama].last_date || tanggal > dataSiswa[nama].last_date) {
-            dataSiswa[nama].last_date = tanggal;
-          }
-        }
-      });
-
-      // Update dataKeterlambatan
-      dataKeterlambatan = [];
-      for(let nama in dataSiswa){
-        let info = dataSiswa[nama];
-        if(info.terlambat_total > 0){
-          dataKeterlambatan.push({
-            nama,
-            terlambat_total: info.terlambat_total
-          });
-        }
-      }
-    }
-
-    /********************************************************
-     *      FUNGSI RENDER TERLAMBAT TABLE
-     ********************************************************/
-    // Sudah didefinisikan sebelumnya sebagai renderDataKeterlambatanTable()
-
-    /********************************************************
-     *      DASHBOARD: RENDER DATA (TERINTEGRASI KE HOME)
-     ********************************************************/
-    // Sudah didefinisikan sebelumnya sebagai renderHome()
-
-    /********************************************************
-     *               FIREBASE CONFIGURATION
+     *      FIREBASE CONFIGURATION
      ********************************************************/
     // 1. Konfigurasi Firebase
     var firebaseConfig = {
@@ -2741,19 +2494,20 @@
     var db = firebase.firestore();
 
     /********************************************************
-     *       FUNGSI ARCHIVE DATA MINGGUAN SECARA OTOMATIS
-     ********************************************************/
-    // Sudah didefinisikan sebelumnya sebagai archiveWeeklyData()
-
-    /********************************************************
-     *      FUNGSI HAPUS SEMUA & HAPUS PILIH SISWA DI DATA SISWA SCREEN
-     ********************************************************/
-    // Sudah didefinisikan sebelumnya sebagai hapusSemuaSiswa() dan hapusPilihSiswa()
-
-    /********************************************************
      *      FUNGSI FIRESTORE CRUD & LOGIKA LAINNYA
      ********************************************************/
     // Semua fungsi CRUD dan logika lain telah didefinisikan di atas
+
+    /********************************************************
+     *      INIT 
+     ********************************************************/
+    // Memanggil init saat halaman dimuat
+    window.onload = init;
+
+    /********************************************************
+     *      FUNGSI ARCHIVE DATA MINGGUAN SECARA OTOMATIS
+     ********************************************************/
+    // Sudah diintegrasikan dalam loadData()
 
   </script>
 </body>
