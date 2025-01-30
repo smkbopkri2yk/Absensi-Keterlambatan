@@ -585,7 +585,7 @@
           <span class="close" onclick="closeEditGuruModal()">&times;</span>
           <h3>Edit Guru Piket</h3>
           <form id="editGuruForm">
-            <input type="hidden" id="editGuruIndex">
+            <input type="hidden" id="editGuruId">
             <label for="editGuruNama">Nama Guru:</label>
             <input type="text" id="editGuruNama" required>
             <label for="editGuruHari">Hari Piket:</label>
@@ -681,13 +681,12 @@
      ********************************************************/
     let currentScreen = "homeScreen";
 
-    // Guru array: {nama, hari} => max 10. 
+    // Guru array: {id, nama, hari} => max 10. 
     let petugasGuru = [];
     let petugasSiswa = []; // array of 2 strings
     let currentPengisi = ""; // guru yg input data
 
     // Data Absensi & Rekap
-    // “pengisi” => guru yang input data
     let historyAbsensi = [];
     let archiveAbsensi = [];
     let dataSiswa = {}; // {nama: {terlambat_total, terlambat_mingguan, last_date}}
@@ -716,7 +715,6 @@
           recalcDataSiswaFromHistory();
           renderHistoryTable();
           renderDataKeterlambatanTable();
-          renderTerlambatTable();
           renderHome(); // Update Home dashboard jika diperlukan
         });
 
@@ -729,15 +727,14 @@
           recalcDataSiswaFromHistory();
           renderHistoryTable();
           renderDataKeterlambatanTable();
-          renderTerlambatTable();
           renderHome(); // Update Home dashboard jika diperlukan
         });
 
-        // Load petugasGuru
+        // Load petugasGuru dengan menyertakan docId
         db.collection('petugasGuru').onSnapshot(snapshot => {
           petugasGuru = [];
           snapshot.forEach(doc => {
-            petugasGuru.push(doc.data());
+            petugasGuru.push({ id: doc.id, ...doc.data() });
           });
           renderPetugasGuruTable();
           renderProfileGuru();
@@ -774,7 +771,6 @@
             dataKeterlambatan.push(doc.data());
           });
           renderDataKeterlambatanTable();
-          renderTerlambatTable();
           renderHome(); // Update Home dashboard jika diperlukan
         });
 
@@ -814,27 +810,26 @@
 
         if(diffWeeks >=1){
           // Pindahkan historyAbsensi ke archiveAbsensi
-          for(let record of historyAbsensi){
-            await db.collection('archiveAbsensi').add(record);
-          }
+          let batch = db.batch();
+          historyAbsensi.forEach(record => {
+            let docRef = db.collection('archiveAbsensi').doc();
+            batch.set(docRef, record);
+          });
           // Hapus semua historyAbsensi
           let historySnapshot = await db.collection('historyAbsensi').get();
-          let batch = db.batch();
           historySnapshot.forEach(doc => {
             batch.delete(doc.ref);
           });
           await batch.commit();
           historyAbsensi = [];
 
-          // Reset jumlah keterlambatan mingguan
-          dataKeterlambatan.forEach(siswa => {
-            siswa.terlambat_mingguan = 0;
-          });
+          // Reset jumlah keterlambatan mingguan jika diperlukan
+          // Anda dapat menambahkan logika reset keterlambatan mingguan di sini
 
           // Update lastArchiveDate
           await db.collection('settings').doc('archiveDate').set({ lastArchiveDate: firebase.firestore.FieldValue.serverTimestamp() });
 
-          alert("Data absensi minggu lalu telah diarsipkan dan keterlambatan mingguan direset.");
+          alert("Data absensi minggu lalu telah diarsipkan.");
         }
       } catch (error) {
         console.error("Error mengarsipkan data:", error);
@@ -895,7 +890,7 @@
         alert("Max guru=10!");
         return;
       }
-      // Cek duplikat
+      // Cek duplikat berdasarkan nama dan hari
       let dupe = petugasGuru.some(g => g.nama.toLowerCase() === nama.toLowerCase() && g.hari === hari);
       if(dupe){
         alert("Guru dengan nama dan hari piket tersebut sudah ada!");
@@ -906,6 +901,9 @@
       try {
         await db.collection('petugasGuru').add(guru);
         alert(`Ditambahkan: ${nama} (hari: ${hari})`);
+        // Reset form
+        document.getElementById('guruNama').value = "";
+        document.getElementById('guruHari').value = "";
       } catch (error) {
         console.error("Error menambah petugas guru:", error);
         alert("Terjadi kesalahan saat menambah petugas guru.");
@@ -927,14 +925,14 @@
         // Tombol Edit
         let btnEdit = document.createElement('button');
         btnEdit.textContent = "Edit";
-        btnEdit.onclick = () => openEditGuruModal(item);
+        btnEdit.onclick = () => openEditGuruModal(item.id);
         btnEdit.classList.add('btn-secondary');
 
         // Tombol Hapus
         let btnHapus = document.createElement('button');
         btnHapus.textContent = "Hapus";
         btnHapus.classList.add('btn-danger');
-        btnHapus.onclick = () => hapusPetugasGuru(item);
+        btnHapus.onclick = () => hapusPetugasGuru(item.id);
 
         tdAksi.appendChild(btnEdit);
         tdAksi.appendChild(btnHapus);
@@ -946,14 +944,10 @@
       });
     }
 
-    async function hapusPetugasGuru(guru) {
-      if(!confirm(`Hapus guru piket: ${guru.nama} pada hari ${guru.hari}?`)) return;
+    async function hapusPetugasGuru(guruId) {
+      if(!confirm(`Hapus guru piket dengan ID: ${guruId}?`)) return;
       try {
-        // Cari dan hapus dari Firestore
-        let snapshot = await db.collection('petugasGuru').where('nama', '==', guru.nama).where('hari', '==', guru.hari).get();
-        snapshot.forEach(doc => {
-          db.collection('petugasGuru').doc(doc.id).delete();
-        });
+        await db.collection('petugasGuru').doc(guruId).delete();
         alert("Guru piket dihapus!");
       } catch (error) {
         console.error("Error menghapus petugas guru:", error);
@@ -967,14 +961,14 @@
     // Modal Elements
     const editGuruModal = document.getElementById('editGuruModal');
 
-    function openEditGuruModal(guru) {
-      // Cari indeks guru di array
-      let index = petugasGuru.findIndex(g => g.nama === guru.nama && g.hari === guru.hari);
-      if(index === -1) return;
+    function openEditGuruModal(guruId) {
+      // Cari guru berdasarkan ID
+      let guru = petugasGuru.find(g => g.id === guruId);
+      if(!guru) return;
 
-      document.getElementById('editGuruIndex').value = index;
-      document.getElementById('editGuruNama').value = petugasGuru[index].nama;
-      document.getElementById('editGuruHari').value = petugasGuru[index].hari;
+      document.getElementById('editGuruId').value = guru.id;
+      document.getElementById('editGuruNama').value = guru.nama;
+      document.getElementById('editGuruHari').value = guru.hari;
       editGuruModal.style.display = "flex";
     }
 
@@ -992,7 +986,7 @@
     // Handle Edit Guru Form Submission
     document.getElementById('editGuruForm').addEventListener('submit', async function(e){
       e.preventDefault();
-      let index = parseInt(document.getElementById('editGuruIndex').value);
+      let guruId = document.getElementById('editGuruId').value;
       let nama = document.getElementById('editGuruNama').value.trim();
       let hari = document.getElementById('editGuruHari').value.trim();
       if(!nama || !hari){
@@ -1000,18 +994,14 @@
         return;
       }
       // Cek duplikat
-      let dupe = petugasGuru.some((g, i) => g.nama.toLowerCase() === nama.toLowerCase() && g.hari === hari && i !== index);
+      let dupe = petugasGuru.some(g => g.nama.toLowerCase() === nama.toLowerCase() && g.hari === hari && g.id !== guruId);
       if(dupe){
         alert("Guru dengan nama dan hari piket tersebut sudah ada!");
         return;
       }
       // Update Firestore
       try {
-        // Cari dan update di Firestore
-        let snapshot = await db.collection('petugasGuru').where('nama', '==', petugasGuru[index].nama).where('hari', '==', petugasGuru[index].hari).get();
-        snapshot.forEach(doc => {
-          db.collection('petugasGuru').doc(doc.id).update({nama, hari});
-        });
+        await db.collection('petugasGuru').doc(guruId).update({nama, hari});
         closeEditGuruModal();
         alert("Data guru piket diperbarui!");
       } catch (error) {
@@ -1568,6 +1558,7 @@
     }
 
     async function deleteRiwayat(item){
+      if(!confirm(`Hapus data absensi siswa: ${item.nama} pada tanggal ${item.tanggal}?`)) return;
       try {
         let collectionName = 'historyAbsensi';
         let snapshot = await db.collection(collectionName).where('nama', '==', item.nama).where('tanggal', '==', item.tanggal).get();
@@ -2117,13 +2108,13 @@
         // Tombol Edit di Profile
         let btnEdit = document.createElement('button');
         btnEdit.textContent = "Edit";
-        btnEdit.onclick = () => openEditGuruModal(item);
+        btnEdit.onclick = () => openEditGuruModal(item.id);
         btnEdit.classList.add('btn-secondary');
 
         // Tombol Hapus di Profile
         let btnHapus = document.createElement('button');
         btnHapus.textContent = "Hapus";
-        btnHapus.onclick = () => hapusPetugasGuru(item);
+        btnHapus.onclick = () => hapusPetugasGuru(item.id);
         btnHapus.classList.add('btn-danger');
 
         tdAksi.appendChild(btnEdit);
@@ -2248,8 +2239,8 @@
         if(!attendanceByDate[date]){
           attendanceByDate[date] = new Set();
         }
-        // Anggap setiap status selain 'absent' sebagai hadir
-        if(item.status !== "absent"){
+        // Anggap setiap status selain 'late', 'izin', 'dipulangkan' sebagai hadir
+        if(!['late', 'izin', 'dipulangkan'].includes(item.status)){
           attendanceByDate[date].add(item.nama);
         }
       });
@@ -2331,6 +2322,27 @@
     }
 
     /********************************************************
+     *      FIREBASE CONFIGURATION
+     ********************************************************/
+    // 1. Konfigurasi Firebase
+    var firebaseConfig = {
+      apiKey: "AIzaSyAFhjJBCAX9Lwd4x9WD2I8AcJyXXLW_SWg",
+      authDomain: "absensiketerlambatanapp.firebaseapp.com",
+      projectId: "absensiketerlambatanapp",
+      storageBucket: "absensiketerlambatanapp.firebasestorage.app",
+      messagingSenderId: "522595195668",
+      appId: "1:522595195668:web:b61422a0cccc2cf9778001"
+    };
+    // 2. Inisialisasi Firebase
+    firebase.initializeApp(firebaseConfig);
+    var db = firebase.firestore();
+
+    /********************************************************
+     *      FUNGSI FIRESTORE CRUD & LOGIKA LAINNYA
+     ********************************************************/
+    // Semua fungsi CRUD dan logika lain telah didefinisikan di atas
+
+    /********************************************************
      *      INIT 
      ********************************************************/
     async function init(){
@@ -2339,7 +2351,6 @@
       recalcDataSiswaFromHistory();
       renderHistoryTable();
       renderDataKeterlambatanTable();
-      renderTerlambatTable();
       renderPetugasGuruTable();
       renderDataSiswaTable();
       renderDataSiswaList(); // Render datalist untuk autocomplete
@@ -2349,11 +2360,6 @@
       await updateProfileInfo();
       renderHome(); // Render Home dashboard saat inisialisasi
     }
-
-    /********************************************************
-     *       FUNGSI ARCHIVE DATA MINGGUAN SECARA OTOMATIS
-     ********************************************************/
-    // Sudah diintegrasikan dalam loadData()
 
     /********************************************************
      *      FUNGSI HAPUS SEMUA & HAPUS PILIH SISWA DI DATA SISWA SCREEN
@@ -2478,36 +2484,12 @@
     }
 
     /********************************************************
-     *      FIREBASE CONFIGURATION
+     *      FIREBASE LISTENERS SETUP
      ********************************************************/
-    // 1. Konfigurasi Firebase
-    var firebaseConfig = {
-      apiKey: "AIzaSyAFhjJBCAX9Lwd4x9WD2I8AcJyXXLW_SWg",
-      authDomain: "absensiketerlambatanapp.firebaseapp.com",
-      projectId: "absensiketerlambatanapp",
-      storageBucket: "absensiketerlambatanapp.firebasestorage.app",
-      messagingSenderId: "522595195668",
-      appId: "1:522595195668:web:b61422a0cccc2cf9778001"
-    };
-    // 2. Inisialisasi Firebase
-    firebase.initializeApp(firebaseConfig);
-    var db = firebase.firestore();
+    // Didefinisikan di loadData()
 
-    /********************************************************
-     *      FUNGSI FIRESTORE CRUD & LOGIKA LAINNYA
-     ********************************************************/
-    // Semua fungsi CRUD dan logika lain telah didefinisikan di atas
-
-    /********************************************************
-     *      INIT 
-     ********************************************************/
     // Memanggil init saat halaman dimuat
     window.onload = init;
-
-    /********************************************************
-     *      FUNGSI ARCHIVE DATA MINGGUAN SECARA OTOMATIS
-     ********************************************************/
-    // Sudah diintegrasikan dalam loadData()
 
   </script>
 </body>
