@@ -296,6 +296,17 @@
       100% { transform: rotate(360deg); }
     }
 
+    /* ========== SEARCH BAR STYLES ========== */
+    .search-bar {
+      margin-top: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .search-bar input[type="text"] {
+      flex: 1;
+    }
+
   </style>
 </head>
 <body>
@@ -396,6 +407,14 @@
     <!-- ========== SCREEN: DATA KETERLAMBATAN ========== -->
     <div id="terlambatScreen" class="screen">
       <h2>Data Keterlambatan</h2>
+      
+      <!-- Search Bar -->
+      <div class="search-bar">
+        <input type="text" id="searchKeterlambatan" placeholder="Cari nama siswa...">
+        <button class="btn-secondary" onclick="searchKeterlambatan()">Cari</button>
+        <button class="btn-secondary" onclick="resetSearchKeterlambatan()">Reset</button>
+      </div>
+
       <button class="btn-danger" onclick="resetSemuaKeterlambatan()">Reset Semua Keterlambatan</button>
       <table>
         <thead>
@@ -412,6 +431,14 @@
     <!-- ========== SCREEN: HISTORY ========== -->
     <div id="historyScreen" class="screen">
       <h2>Riwayat Absensi</h2>
+      
+      <!-- Search Bar -->
+      <div class="search-bar">
+        <input type="text" id="searchHistory" placeholder="Cari nama siswa...">
+        <button class="btn-secondary" onclick="searchHistory()">Cari</button>
+        <button class="btn-secondary" onclick="resetSearchHistory()">Reset</button>
+      </div>
+
       <div class="filter-section">
         <h3>Filter / Analisis</h3>
         <label for="filterDate">Filter Harian:</label>
@@ -624,6 +651,13 @@
     <!-- ========== SCREEN: DATA SISWA ========== -->
     <div id="dataSiswaScreen" class="screen">
       <h2>Data Siswa</h2>
+
+      <!-- Search Bar -->
+      <div class="search-bar">
+        <input type="text" id="searchDataSiswa" placeholder="Cari nama siswa...">
+        <button class="btn-secondary" onclick="searchDataSiswa()">Cari</button>
+        <button class="btn-secondary" onclick="resetSearchDataSiswa()">Reset</button>
+      </div>
 
       <!-- Form Tambah Siswa -->
       <div style="margin-bottom:30px;">
@@ -1661,11 +1695,13 @@
     /********************************************************
      *      RENDER TABEL DATA KETERLAMBATAN
      ********************************************************/
-    function renderDataKeterlambatanTable(){
+    function renderDataKeterlambatanTable(filteredData = null){
       let tbody = document.getElementById('dataKeterlambatanTable');
       tbody.innerHTML = "";
 
-      dataKeterlambatan.forEach(async (siswa, index) => {
+      let dataToRender = filteredData || dataKeterlambatan;
+
+      dataToRender.forEach(async (siswa, index) => {
         let tr = document.createElement('tr');
 
         let tdNama = document.createElement('td');
@@ -2622,6 +2658,63 @@
 
     // Memanggil init saat halaman dimuat
     window.onload = init;
+
+    /********************************************************
+     *      PENCARIAN DI DATA KETERLAMBATAN
+     ********************************************************/
+    function searchKeterlambatan(){
+      let query = document.getElementById('searchKeterlambatan').value.trim().toLowerCase();
+      if(!query){
+        alert("Masukkan kata kunci pencarian.");
+        return;
+      }
+      // Filter dataKeterlambatan berdasarkan nama
+      let filtered = dataKeterlambatan.filter(siswa => siswa.nama.toLowerCase().includes(query));
+      renderDataKeterlambatanTable(filtered);
+    }
+
+    function resetSearchKeterlambatan(){
+      document.getElementById('searchKeterlambatan').value = "";
+      renderDataKeterlambatanTable();
+    }
+
+    /********************************************************
+     *      PENCARIAN DI HISTORY
+     ********************************************************/
+    function searchHistory(){
+      let query = document.getElementById('searchHistory').value.trim().toLowerCase();
+      if(!query){
+        alert("Masukkan kata kunci pencarian.");
+        return;
+      }
+      // Filter historyAbsensi dan archiveAbsensi berdasarkan nama
+      let filtered = historyAbsensi.concat(archiveAbsensi).filter(item => item.nama.toLowerCase().includes(query));
+      renderHistoryTable(filtered);
+    }
+
+    function resetSearchHistory(){
+      document.getElementById('searchHistory').value = "";
+      renderHistoryTable();
+    }
+
+    /********************************************************
+     *      PENCARIAN DI DATA SISWA
+     ********************************************************/
+    function searchDataSiswa(){
+      let query = document.getElementById('searchDataSiswa').value.trim().toLowerCase();
+      if(!query){
+        alert("Masukkan kata kunci pencarian.");
+        return;
+      }
+      // Filter databaseSiswa berdasarkan nama
+      let filtered = databaseSiswa.filter(siswa => siswa.nama.toLowerCase().includes(query));
+      renderDataSiswaTable(filtered);
+    }
+
+    function resetSearchDataSiswa(){
+      document.getElementById('searchDataSiswa').value = "";
+      renderDataSiswaTable();
+    }
 
   </script>
 </body>
