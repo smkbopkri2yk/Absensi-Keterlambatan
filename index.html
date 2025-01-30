@@ -324,11 +324,11 @@
     <div id="homeScreen" class="screen active">
       <h2>Dashboard Home</h2>
 
-      <!-- Grafik Kehadiran Bulanan -->
+      <!-- Grafik Keterlambatan Bulanan -->
       <div class="dashboard-section">
         <div class="dashboard-card">
-          <h3>Grafik Kehadiran Siswa Selama Sebulan Terakhir</h3>
-          <canvas id="chartAttendanceLine" style="max-width:800px;"></canvas>
+          <h3>Grafik Keterlambatan Siswa Selama Sebulan Terakhir</h3>
+          <canvas id="chartLatenessLine" style="max-width:800px;"></canvas>
         </div>
       </div>
 
@@ -713,7 +713,7 @@
     let dataKeterlambatan = []; // Array of {nama, terlambat_total}
 
     let chartObj = null;
-    let attendanceLineChart = null; // Untuk Grafik Kehadiran Bulanan
+    let latenessLineChart = null; // Untuk Grafik Keterlambatan Bulanan
 
     // Definisikan urutan hari
     const dayOrder = ["Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
@@ -885,7 +885,7 @@
       if (screenId === 'statistikScreen') {
         // Jika grafik sudah ada, destroy untuk update
         if(chartObj) chartObj.destroy();
-        if(attendanceLineChart) attendanceLineChart.destroy();
+        if(latenessLineChart) latenessLineChart.destroy();
         document.getElementById('downloadSection').style.display = "none";
       }
       if (screenId === 'homeScreen') {
@@ -1534,6 +1534,48 @@
         // Alert sukses
         alert("Status absensi berhasil diperbarui!");
 
+        // Update keterlambatan jika status berubah
+        if(newStatus === "late" && item.status !== "late"){
+          // Tambah keterlambatan
+          let keterlambatan = dataKeterlambatan.find(k => k.nama.toLowerCase() === item.nama.toLowerCase());
+          if(keterlambatan){
+            keterlambatan.terlambat_total += 1;
+            // Update Firestore
+            let ketSnapshot = await db.collection('dataKeterlambatan').where('nama', '==', keterlambatan.nama).get();
+            ketSnapshot.forEach(doc => {
+              db.collection('dataKeterlambatan').doc(doc.id).update({terlambat_total: keterlambatan.terlambat_total});
+            });
+          } else {
+            let newKeterlambatan = {
+              nama: item.nama,
+              terlambat_total: 1
+            };
+            await db.collection('dataKeterlambatan').add(newKeterlambatan);
+          }
+
+          // Cek jika terlambat >= 3
+          let currentTotal = dataKeterlambatan.find(k => k.nama.toLowerCase() === item.nama.toLowerCase())?.terlambat_total || 0;
+          if(currentTotal === 3){
+            alert(`Siswa ${item.nama} sudah terlambat 3x dan harus dipulangkan.`);
+            // Implementasikan logika pemulangan sesuai kebutuhan
+          }
+        } else if(newStatus !== "late" && item.status === "late"){
+          // Kurangi keterlambatan
+          let keterlambatan = dataKeterlambatan.find(k => k.nama.toLowerCase() === item.nama.toLowerCase());
+          if(keterlambatan && keterlambatan.terlambat_total > 0){
+            keterlambatan.terlambat_total -=1;
+            // Update Firestore
+            let ketSnapshot = await db.collection('dataKeterlambatan').where('nama', '==', keterlambatan.nama).get();
+            ketSnapshot.forEach(doc => {
+              if(keterlambatan.terlambat_total === 0){
+                db.collection('dataKeterlambatan').doc(doc.id).delete();
+              } else {
+                db.collection('dataKeterlambatan').doc(doc.id).update({terlambat_total: keterlambatan.terlambat_total});
+              }
+            });
+          }
+        }
+
         // Update UI
         renderHome();
       } catch (error) {
@@ -1589,7 +1631,27 @@
           db.collection(collectionName).doc(doc.id).delete();
         });
 
+        // Kurangi keterlambatan jika status 'late'
+        if(item.status === "late"){
+          let keterlambatan = dataKeterlambatan.find(k => k.nama.toLowerCase() === item.nama.toLowerCase());
+          if(keterlambatan && keterlambatan.terlambat_total > 0){
+            keterlambatan.terlambat_total -=1;
+            // Update Firestore
+            let ketSnapshot = await db.collection('dataKeterlambatan').where('nama', '==', keterlambatan.nama).get();
+            ketSnapshot.forEach(doc => {
+              if(keterlambatan.terlambat_total === 0){
+                db.collection('dataKeterlambatan').doc(doc.id).delete();
+              } else {
+                db.collection('dataKeterlambatan').doc(doc.id).update({terlambat_total: keterlambatan.terlambat_total});
+              }
+            });
+          }
+        }
+
         alert("Data absensi terhapus!");
+
+        // Update UI
+        renderHome();
       } catch (error) {
         console.error("Error menghapus absensi:", error);
         alert("Terjadi kesalahan saat menghapus absensi.");
@@ -1889,20 +1951,20 @@
 
       // Jika chart sudah ada, destroy untuk menghindari overlap
       if(chartObj) chartObj.destroy();
-      if(attendanceLineChart) attendanceLineChart.destroy();
+      if(latenessLineChart) latenessLineChart.destroy();
 
       // Menentukan jenis grafik
       if(option === "bulanan"){
         // Grafik Keterlambatan Bulanan
-        attendanceLineChart = new Chart(ctx, {
+        latenessLineChart = new Chart(ctx, {
           type: typeChart,
           data: {
             labels,
             datasets: [{
               label: chartTitle,
               data: values,
-              backgroundColor: 'rgba(46, 204, 113, 0.2)',
-              borderColor: 'rgba(46, 204, 113, 1)',
+              backgroundColor: 'rgba(231, 76, 60, 0.2)',
+              borderColor: 'rgba(231, 76, 60, 1)',
               borderWidth: 2,
               fill: true,
               tension: 0.3
@@ -2251,16 +2313,16 @@
      *      DASHBOARD: RENDER DATA (TERINTEGRASI KE HOME)
      ********************************************************/
     async function renderHome(){
-      // 1. Grafik Kehadiran Bulanan
-      await renderAttendanceLineChart();
+      // 1. Grafik Keterlambatan Bulanan
+      await renderLatenessLineChart();
 
       // 2. Top 5 Siswa dengan Keterlambatan Terbanyak
       renderTop5LateStudents();
     }
 
-    async function renderAttendanceLineChart(){
+    async function renderLatenessLineChart(){
       // Tampilkan loader sementara grafik sedang diproses
-      let ctx = document.getElementById('chartAttendanceLine').getContext('2d');
+      let ctx = document.getElementById('chartLatenessLine').getContext('2d');
       ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
       let loader = document.createElement('div');
       loader.classList.add('loader');
@@ -2271,7 +2333,7 @@
         let combinedData = historyAbsensi.concat(archiveAbsensi);
         if(combinedData.length === 0){
           // Tidak ada data absensi untuk membuat grafik
-          alert("Tidak ada data absensi untuk membuat grafik Kehadiran.");
+          alert("Tidak ada data absensi untuk membuat grafik Keterlambatan.");
           loader.remove();
           return;
         }
@@ -2282,20 +2344,19 @@
         // Ambil data untuk bulan terakhir
         let monthlyData = combinedData.filter(item => item.tanggal.startsWith(latestMonth));
 
-        // Hitung kehadiran per hari
-        let attendanceByDate = {};
+        // Hitung keterlambatan per hari
+        let latenessByDate = {};
         monthlyData.forEach(item => {
-          let date = item.tanggal;
-          if(!attendanceByDate[date]){
-            attendanceByDate[date] = new Set();
-          }
-          // Anggap setiap status selain 'late', 'izin', 'dipulangkan' sebagai hadir
-          if(!['late', 'izin', 'dipulangkan'].includes(item.status)){
-            attendanceByDate[date].add(item.nama);
+          if(item.status === "late"){
+            let date = item.tanggal;
+            if(!latenessByDate[date]){
+              latenessByDate[date] = 0;
+            }
+            latenessByDate[date]++;
           }
         });
 
-        // Buat array tanggal dan jumlah hadir
+        // Buat array tanggal dan jumlah keterlambatan
         let dates = [];
         let counts = [];
         let year = parseInt(latestMonth.slice(0,4));
@@ -2304,22 +2365,22 @@
         for(let day=1; day<=daysInMonth; day++){
           let dateStr = `${latestMonth}-${day.toString().padStart(2,'0')}`;
           dates.push(dateStr);
-          counts.push(attendanceByDate[dateStr] ? attendanceByDate[dateStr].size : 0);
+          counts.push(latenessByDate[dateStr] || 0);
         }
 
         // Destroy existing chart jika ada
-        if(attendanceLineChart) attendanceLineChart.destroy();
+        if(latenessLineChart) latenessLineChart.destroy();
 
         // Render chart
-        attendanceLineChart = new Chart(ctx, {
+        latenessLineChart = new Chart(ctx, {
           type: 'line',
           data: {
             labels: dates,
             datasets: [{
-              label: `Jumlah Kehadiran pada Bulan ${latestMonth}`,
+              label: `Jumlah Keterlambatan pada Bulan ${latestMonth}`,
               data: counts,
-              backgroundColor: 'rgba(46, 204, 113, 0.2)',
-              borderColor: 'rgba(46, 204, 113, 1)',
+              backgroundColor: 'rgba(231, 76, 60, 0.2)',
+              borderColor: 'rgba(231, 76, 60, 1)',
               borderWidth: 2,
               fill: true,
               tension: 0.3
@@ -2332,7 +2393,7 @@
                 beginAtZero: true,
                 suggestedMax: Math.max(...counts) + 5,
                 ticks: {
-                  stepSize: 5
+                  stepSize: 1
                 }
               },
               x: {
@@ -2346,7 +2407,7 @@
               tooltip: {
                 callbacks: {
                   label: function(context) {
-                    return ` Kehadiran: ${context.parsed.y}`;
+                    return ` Keterlambatan: ${context.parsed.y}`;
                   }
                 }
               }
@@ -2357,8 +2418,8 @@
         // Hapus loader setelah grafik selesai dirender
         loader.remove();
       } catch (error) {
-        console.error("Error merender grafik kehadiran:", error);
-        alert("Terjadi kesalahan saat merender grafik kehadiran.");
+        console.error("Error merender grafik keterlambatan:", error);
+        alert("Terjadi kesalahan saat merender grafik keterlambatan.");
         loader.remove();
       }
     }
