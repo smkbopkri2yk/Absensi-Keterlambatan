@@ -39,6 +39,7 @@
     button:hover {
       transform: translateY(-2px);
     }
+
     /* ========== HEADER STYLES ========== */
     header {
       background-color: #4a90e2;
@@ -290,7 +291,6 @@
       animation: spin 1s linear infinite;
       margin: 20px auto;
     }
-
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
@@ -306,7 +306,6 @@
     .search-bar input[type="text"] {
       flex: 1;
     }
-
   </style>
 </head>
 <body>
@@ -407,7 +406,7 @@
     <!-- ========== SCREEN: DATA KETERLAMBATAN ========== -->
     <div id="terlambatScreen" class="screen">
       <h2>Data Keterlambatan</h2>
-      
+
       <!-- Search Bar -->
       <div class="search-bar">
         <input type="text" id="searchKeterlambatan" placeholder="Cari nama siswa...">
@@ -431,7 +430,7 @@
     <!-- ========== SCREEN: HISTORY ========== -->
     <div id="historyScreen" class="screen">
       <h2>Riwayat Absensi</h2>
-      
+
       <!-- Search Bar -->
       <div class="search-bar">
         <input type="text" id="searchHistory" placeholder="Cari nama siswa...">
@@ -732,24 +731,19 @@
      ********************************************************/
     let currentScreen = "homeScreen";
 
-    // Guru array: {id, nama, hari} => max 10. 
     let petugasGuru = [];
-    let petugasSiswa = []; // array of 2 strings
-    let currentPengisi = ""; // guru yg input data
+    let petugasSiswa = []; 
+    let currentPengisi = ""; 
 
-    // Data Absensi & Rekap
     let historyAbsensi = [];
     let archiveAbsensi = [];
-    let dataSiswa = {}; // {nama: {terlambat_total, terlambat_mingguan, last_date}}
-    let databaseSiswa = []; // Array of siswa {nama, kelas, nis, waliKelas}
-
-    // Data Keterlambatan
-    let dataKeterlambatan = []; // Array of {nama, terlambat_total}
+    let dataSiswa = {}; 
+    let databaseSiswa = []; 
+    let dataKeterlambatan = []; 
 
     let chartObj = null;
-    let latenessLineChart = null; // Untuk Grafik Keterlambatan Bulanan
+    let latenessLineChart = null;
 
-    // Definisikan urutan hari
     const dayOrder = ["Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
 
     /********************************************************
@@ -757,7 +751,6 @@
      ********************************************************/
     async function loadData() {
       try {
-        // Load historyAbsensi
         db.collection('historyAbsensi').onSnapshot(snapshot => {
           historyAbsensi = [];
           snapshot.forEach(doc => {
@@ -766,10 +759,9 @@
           recalcDataSiswaFromHistory();
           renderHistoryTable();
           renderDataKeterlambatanTable();
-          renderHome(); // Update Home dashboard jika diperlukan
+          renderHome(); 
         });
 
-        // Load archiveAbsensi
         db.collection('archiveAbsensi').onSnapshot(snapshot => {
           archiveAbsensi = [];
           snapshot.forEach(doc => {
@@ -778,10 +770,9 @@
           recalcDataSiswaFromHistory();
           renderHistoryTable();
           renderDataKeterlambatanTable();
-          renderHome(); // Update Home dashboard jika diperlukan
+          renderHome(); 
         });
 
-        // Load petugasGuru dengan menyertakan docId
         db.collection('petugasGuru').onSnapshot(snapshot => {
           petugasGuru = [];
           snapshot.forEach(doc => {
@@ -790,20 +781,18 @@
           renderPetugasGuruTable();
           renderProfileGuru();
           renderProfilePengisiToday();
-          renderHome(); // Update Home dashboard jika diperlukan
+          renderHome(); 
         });
 
-        // Load petugasSiswa
         db.collection('petugasSiswa').onSnapshot(snapshot => {
           petugasSiswa = [];
           snapshot.forEach(doc => {
             petugasSiswa.push(doc.data().nama);
           });
           renderProfileSiswa();
-          renderHome(); // Update Home dashboard jika diperlukan
+          renderHome();
         });
 
-        // Load databaseSiswa
         db.collection('databaseSiswa').onSnapshot(snapshot => {
           databaseSiswa = [];
           snapshot.forEach(doc => {
@@ -812,24 +801,22 @@
           renderDataSiswaTable();
           renderDataSiswaList();
           renderProfilePengisiToday();
-          renderHome(); // Update Home dashboard jika diperlukan
+          renderHome();
         });
 
-        // Load dataKeterlambatan
         db.collection('dataKeterlambatan').onSnapshot(snapshot => {
           dataKeterlambatan = [];
           snapshot.forEach(doc => {
             dataKeterlambatan.push(doc.data());
           });
           renderDataKeterlambatanTable();
-          renderHome(); // Update Home dashboard jika diperlukan
+          renderHome();
         });
 
-        // Load currentPengisi
         db.collection('currentPengisi').doc('pengisi').onSnapshot(doc => {
           currentPengisi = doc.exists ? doc.data().nama : "";
           renderProfilePengisiToday();
-          renderHome(); // Update Home dashboard jika diperlukan
+          renderHome();
         });
 
         console.log("Data berhasil dimuat dari Firestore.");
@@ -844,29 +831,24 @@
      ********************************************************/
     async function archiveWeeklyData() {
       try {
-        // Mendapatkan tanggal terakhir arsip
         let settingsDoc = await db.collection('settings').doc('archiveDate').get();
         let lastArchiveDate = settingsDoc.exists ? settingsDoc.data().lastArchiveDate.toDate() : null;
         let today = new Date();
 
         if(!lastArchiveDate) {
-          // Jika belum pernah diarsipkan, set ke hari ini
           await db.collection('settings').doc('archiveDate').set({ lastArchiveDate: firebase.firestore.FieldValue.serverTimestamp() });
           return;
         }
 
-        // Hitung perbedaan minggu
         let diffTime = today - lastArchiveDate;
         let diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
 
         if(diffWeeks >=1){
-          // Pindahkan historyAbsensi ke archiveAbsensi
           let batch = db.batch();
           historyAbsensi.forEach(record => {
             let docRef = db.collection('archiveAbsensi').doc();
             batch.set(docRef, record);
           });
-          // Hapus semua historyAbsensi
           let historySnapshot = await db.collection('historyAbsensi').get();
           historySnapshot.forEach(doc => {
             batch.delete(doc.ref);
@@ -874,12 +856,7 @@
           await batch.commit();
           historyAbsensi = [];
 
-          // Reset jumlah keterlambatan mingguan jika diperlukan
-          // Anda dapat menambahkan logika reset keterlambatan mingguan di sini
-
-          // Update lastArchiveDate
           await db.collection('settings').doc('archiveDate').set({ lastArchiveDate: firebase.firestore.FieldValue.serverTimestamp() });
-
           alert("Data absensi minggu lalu telah diarsipkan.");
         }
       } catch (error) {
@@ -896,7 +873,6 @@
       document.getElementById(screenId)?.classList.add('active');
       currentScreen = screenId;
 
-      // Refresh tampilan
       if (screenId === 'terlambatScreen') {
         renderDataKeterlambatanTable();
       }
@@ -910,14 +886,13 @@
         renderProfilePengisiToday(); 
       }
       if (screenId === 'settingsScreen') {
-        renderPetugasGuruTable(); // Supaya tampilan table guru di Settings update
+        renderPetugasGuruTable(); 
       }
       if (screenId === 'dataSiswaScreen') {
         renderDataSiswaTable();
-        renderDataSiswaList(); // Update datalist untuk autocomplete
+        renderDataSiswaList();
       }
       if (screenId === 'statistikScreen') {
-        // Jika grafik sudah ada, destroy untuk update
         if(chartObj) chartObj.destroy();
         if(latenessLineChart) latenessLineChart.destroy();
         document.getElementById('downloadSection').style.display = "none";
@@ -941,18 +916,15 @@
         alert("Max guru=10!");
         return;
       }
-      // Cek duplikat berdasarkan nama dan hari
       let dupe = petugasGuru.some(g => g.nama.toLowerCase() === nama.toLowerCase() && g.hari === hari);
       if(dupe){
         alert("Guru dengan nama dan hari piket tersebut sudah ada!");
         return;
       }
-      // Tambah
       let guru = {nama, hari};
       try {
         await db.collection('petugasGuru').add(guru);
         alert(`Ditambahkan: ${nama} (hari: ${hari})`);
-        // Reset form
         document.getElementById('guruNama').value = "";
         document.getElementById('guruHari').value = "";
       } catch (error) {
@@ -965,7 +937,7 @@
       let tbody = document.getElementById('petugasGuruTable');
       tbody.innerHTML = "";
 
-      petugasGuru.forEach((item, index) => {
+      petugasGuru.forEach((item) => {
         let tr = document.createElement('tr');
         let tdNama = document.createElement('td');
         tdNama.textContent = item.nama;
@@ -973,13 +945,11 @@
         tdHari.textContent = item.hari;
         let tdAksi = document.createElement('td');
         
-        // Tombol Edit
         let btnEdit = document.createElement('button');
         btnEdit.textContent = "Edit";
         btnEdit.onclick = () => openEditGuruModal(item.id);
         btnEdit.classList.add('btn-secondary');
 
-        // Tombol Hapus
         let btnHapus = document.createElement('button');
         btnHapus.textContent = "Hapus";
         btnHapus.onclick = () => hapusPetugasGuru(item.id);
@@ -1008,16 +978,13 @@
     }
 
     /********************************************************
-     *     MANIPULASI MODAL EDIT GURU PIKET
+     *     MODAL EDIT GURU PIKET
      ********************************************************/
-    // Modal Elements
     const editGuruModal = document.getElementById('editGuruModal');
 
     function openEditGuruModal(guruId) {
-      // Cari guru berdasarkan ID
       let guru = petugasGuru.find(g => g.id === guruId);
       if(!guru) return;
-
       document.getElementById('editGuruId').value = guru.id;
       document.getElementById('editGuruNama').value = guru.nama;
       document.getElementById('editGuruHari').value = guru.hari;
@@ -1028,14 +995,12 @@
       editGuruModal.style.display = "none";
     }
 
-    // Close modal when clicking outside
     window.onclick = function(event) {
       if (event.target == editGuruModal) {
         editGuruModal.style.display = "none";
       }
     }
 
-    // Handle Edit Guru Form Submission
     document.getElementById('editGuruForm').addEventListener('submit', async function(e){
       e.preventDefault();
       let guruId = document.getElementById('editGuruId').value;
@@ -1045,13 +1010,11 @@
         alert("Nama & Hari piket guru tidak boleh kosong!");
         return;
       }
-      // Cek duplikat
       let dupe = petugasGuru.some(g => g.nama.toLowerCase() === nama.toLowerCase() && g.hari === hari && g.id !== guruId);
       if(dupe){
         alert("Guru dengan nama dan hari piket tersebut sudah ada!");
         return;
       }
-      // Update Firestore
       try {
         await db.collection('petugasGuru').doc(guruId).update({nama, hari});
         closeEditGuruModal();
@@ -1075,18 +1038,15 @@
         alert("Nama, Kelas, NIS, dan Wali Kelas siswa tidak boleh kosong!");
         return;
       }
-      // Cek duplikat
       let dupe = databaseSiswa.some(s => s.nama.toLowerCase() === nama.toLowerCase() || s.nis === nis);
       if(dupe){
         alert("Siswa dengan nama atau NIS tersebut sudah ada!");
         return;
       }
-      // Tambah siswa
       let siswa = {nama, kelas, nis, waliKelas};
       try {
         await db.collection('databaseSiswa').add(siswa);
         alert("Siswa berhasil ditambahkan!");
-        // Reset form
         document.getElementById('dataSiswaNama').value = "";
         document.getElementById('dataSiswaKelas').value = "";
         document.getElementById('dataSiswaNIS').value = "";
@@ -1094,237 +1054,6 @@
       } catch (error) {
         console.error("Error menambah siswa:", error);
         alert("Terjadi kesalahan saat menambah siswa.");
-      }
-    }
-
-    /********************************************************
-     *      PENCARIAN DAN PENYARINGAN DATA SISWA
-     ********************************************************/
-    function cariSiswa(){
-      let query = document.getElementById('searchSiswa')?.value.trim().toLowerCase();
-      if(!query){
-        alert("Masukkan kata kunci pencarian.");
-        return;
-      }
-      // Filter dataSiswa berdasarkan nama, kelas, NIS, atau waliKelas
-      let filtered = databaseSiswa.filter(siswa => 
-        siswa.nama.toLowerCase().includes(query) ||
-        siswa.kelas.toLowerCase().includes(query) ||
-        siswa.nis.toLowerCase().includes(query) ||
-        siswa.waliKelas.toLowerCase().includes(query)
-      );
-      renderDataSiswaTable(filtered);
-    }
-
-    function resetCariSiswa(){
-      if(document.getElementById('searchSiswa')){
-        document.getElementById('searchSiswa').value = "";
-      }
-      renderDataSiswaTable();
-    }
-
-    /********************************************************
-     *      MODIFIKASI FUNGSI RENDER DATA SISWA
-     ********************************************************/
-    function renderDataSiswaTable(filteredData = null){
-      let tbody = document.getElementById('dataSiswaTable');
-      tbody.innerHTML = "";
-
-      let dataToRender = filteredData || databaseSiswa;
-
-      dataToRender.forEach((siswa, index) => {
-        let tr = document.createElement('tr');
-
-        // Checkbox
-        let tdCheckbox = document.createElement('td');
-        let checkbox = document.createElement('input');
-        checkbox.type = "checkbox";
-        checkbox.classList.add('select-siswa');
-        checkbox.value = index;
-        tdCheckbox.appendChild(checkbox);
-        tr.appendChild(tdCheckbox);
-
-        // Nama Siswa
-        let tdNama = document.createElement('td');
-        tdNama.textContent = siswa.nama;
-        tr.appendChild(tdNama);
-
-        // Kelas
-        let tdKelas = document.createElement('td');
-        tdKelas.textContent = siswa.kelas;
-        tr.appendChild(tdKelas);
-
-        // NIS
-        let tdNIS = document.createElement('td');
-        tdNIS.textContent = siswa.nis;
-        tr.appendChild(tdNIS);
-
-        // Wali Kelas
-        let tdWaliKelas = document.createElement('td');
-        tdWaliKelas.textContent = siswa.waliKelas;
-        tr.appendChild(tdWaliKelas);
-
-        // Aksi
-        let tdAksi = document.createElement('td');
-
-        // Tombol Edit
-        let btnEdit = document.createElement('button');
-        btnEdit.textContent = "Ubah";
-        btnEdit.onclick = () => editSiswa(siswa);
-        btnEdit.classList.add('btn-secondary');
-
-        // Tombol Hapus
-        let btnHapus = document.createElement('button');
-        btnHapus.textContent = "Hapus";
-        btnHapus.classList.add('btn-danger');
-        btnHapus.onclick = () => hapusSiswa(siswa);
-
-        tdAksi.appendChild(btnEdit);
-        tdAksi.appendChild(btnHapus);
-
-        tr.appendChild(tdAksi);
-        tbody.appendChild(tr);
-      });
-    }
-
-    // Fungsi untuk memperbarui datalist untuk autocomplete
-    function renderDataSiswaList() {
-      let datalist = document.getElementById('siswaList');
-      datalist.innerHTML = "";
-      databaseSiswa.forEach(siswa => {
-        let option = document.createElement('option');
-        option.value = siswa.nama;
-        datalist.appendChild(option);
-      });
-    }
-
-    async function editSiswa(siswa){
-      let newNama = prompt("Masukkan nama baru siswa:", siswa.nama);
-      if(newNama === null) return; // Cancel
-      newNama = newNama.trim();
-      if(!newNama){
-        alert("Nama tidak boleh kosong!");
-        return;
-      }
-      let newKelas = prompt("Masukkan kelas baru siswa:", siswa.kelas);
-      if(newKelas === null) return; // Cancel
-      newKelas = newKelas.trim();
-      if(!newKelas){
-        alert("Kelas tidak boleh kosong!");
-        return;
-      }
-      let newNIS = prompt("Masukkan NIS baru siswa:", siswa.nis);
-      if(newNIS === null) return; // Cancel
-      newNIS = newNIS.trim();
-      if(!newNIS){
-        alert("NIS tidak boleh kosong!");
-        return;
-      }
-      let newWaliKelas = prompt("Masukkan Wali Kelas baru siswa:", siswa.waliKelas);
-      if(newWaliKelas === null) return; // Cancel
-      newWaliKelas = newWaliKelas.trim();
-      if(!newWaliKelas){
-        alert("Wali Kelas tidak boleh kosong!");
-        return;
-      }
-      // Cek duplikat
-      let dupe = databaseSiswa.some((s) => 
-        (s.nama.toLowerCase() === newNama.toLowerCase() || s.nis.toLowerCase() === newNIS.toLowerCase()) &&
-        !(s.nama === siswa.nama && s.nis === siswa.nis)
-      );
-      if(dupe){
-        alert("Siswa dengan nama atau NIS tersebut sudah ada!");
-        return;
-      }
-      // Update Firestore
-      try {
-        // Cari dan update di Firestore
-        let snapshot = await db.collection('databaseSiswa').where('nama', '==', siswa.nama).where('nis', '==', siswa.nis).get();
-        snapshot.forEach(doc => {
-          db.collection('databaseSiswa').doc(doc.id).update({nama: newNama, kelas: newKelas, nis: newNIS, waliKelas: newWaliKelas});
-        });
-        alert("Data siswa diperbarui!");
-      } catch (error) {
-        console.error("Error memperbarui siswa:", error);
-        alert("Terjadi kesalahan saat memperbarui siswa.");
-      }
-    }
-
-    async function hapusSiswa(siswa){
-      if(!confirm(`Hapus data siswa: ${siswa.nama} dari kelas ${siswa.kelas}?`)) return;
-      try {
-        // Hapus dari Firestore databaseSiswa
-        let snapshot = await db.collection('databaseSiswa').where('nama', '==', siswa.nama).where('nis', '==', siswa.nis).get();
-        snapshot.forEach(doc => {
-          db.collection('databaseSiswa').doc(doc.id).delete();
-        });
-
-        // Hapus dari Firestore historyAbsensi dan archiveAbsensi
-        let historySnapshot = await db.collection('historyAbsensi').where('nama', '==', siswa.nama).get();
-        historySnapshot.forEach(doc => {
-          db.collection('historyAbsensi').doc(doc.id).delete();
-        });
-        let archiveSnapshot = await db.collection('archiveAbsensi').where('nama', '==', siswa.nama).get();
-        archiveSnapshot.forEach(doc => {
-          db.collection('archiveAbsensi').doc(doc.id).delete();
-        });
-
-        // Hapus dari Firestore dataKeterlambatan
-        let ketSnapshot = await db.collection('dataKeterlambatan').where('nama', '==', siswa.nama).get();
-        ketSnapshot.forEach(doc => {
-          db.collection('dataKeterlambatan').doc(doc.id).delete();
-        });
-
-        // Hapus dari Firestore petugasSiswa jika ada
-        let petugasSnapshot = await db.collection('petugasSiswa').where('nama', '==', siswa.nama).get();
-        petugasSnapshot.forEach(doc => {
-          db.collection('petugasSiswa').doc(doc.id).delete();
-        });
-
-        alert(`Data siswa "${siswa.nama}" dihapus!`);
-      } catch (error) {
-        console.error("Error menghapus siswa:", error);
-        alert("Terjadi kesalahan saat menghapus siswa.");
-      }
-    }
-
-    /********************************************************
-     *     SIMPAN PETUGAS SISWA
-     ********************************************************/
-    async function simpanPetugasSiswa() {
-      let s1 = document.getElementById('siswa1').value.trim();
-      let s2 = document.getElementById('siswa2').value.trim();
-      if(!s1||!s2) {
-        alert("Isi kedua siswa!");
-        return;
-      }
-      // Cek apakah siswa ada di databaseSiswa
-      let siswa1Exists = databaseSiswa.some(s => s.nama.toLowerCase() === s1.toLowerCase());
-      let siswa2Exists = databaseSiswa.some(s => s.nama.toLowerCase() === s2.toLowerCase());
-      if(!siswa1Exists || !siswa2Exists){
-        alert("Salah satu atau kedua siswa tidak ditemukan di database. Silakan tambahkan siswa di menu Data Siswa.");
-        return;
-      }
-      petugasSiswa = [s1, s2];
-      try {
-        // Hapus semua petugasSiswa sebelumnya
-        let existingPetugas = await db.collection('petugasSiswa').get();
-        let batch = db.batch();
-        existingPetugas.forEach(doc => {
-          batch.delete(doc.ref);
-        });
-        await batch.commit();
-
-        // Simpan petugasSiswa baru
-        for(let s of petugasSiswa){
-          await db.collection('petugasSiswa').add({nama: s});
-        }
-        alert("Petugas Siswa => "+petugasSiswa.join(" & "));
-        document.getElementById('siswa1').value = "";
-        document.getElementById('siswa2').value = "";
-      } catch (error) {
-        console.error("Error menyimpan petugas siswa:", error);
-        alert("Terjadi kesalahan saat menyimpan petugas siswa.");
       }
     }
 
@@ -1351,8 +1080,6 @@
           }
         }
       });
-
-      // Update dataKeterlambatan
       dataKeterlambatan = [];
       for(let nama in dataSiswa){
         let info = dataSiswa[nama];
@@ -1373,10 +1100,8 @@
       let rawNama = document.getElementById('namaSiswa').value.trim();
       let namaSiswa = rawNama.toLowerCase();
       let tanggal = document.getElementById('tanggalAbsen').value;
-
       let statusSelect = document.getElementById('statusKedatangan');
       let statusKedatangan = statusSelect.value;
-
       let alasan = document.getElementById('dropdownAlasan').value.trim();
       let alasanCustom = document.getElementById('alasanCustom').value.trim();
       let finalAlasan = "-";
@@ -1385,30 +1110,27 @@
         alert("Mohon lengkapi data (nama, tanggal, status).");
         return;
       }
-
-      // Cek apakah siswa ada di databaseSiswa
       let siswaExists = databaseSiswa.some(s => s.nama.toLowerCase() === namaSiswa);
       if(!siswaExists){
         alert("Siswa tidak ditemukan di database. Silakan tambahkan siswa di menu Data Siswa.");
         return;
       }
-
-      // Cek duplikat di Firestore
-      let historySnapshot = await db.collection('historyAbsensi').where('nama', '==', rawNama).where('tanggal', '==', tanggal).get();
-      let archiveSnapshot = await db.collection('archiveAbsensi').where('nama', '==', rawNama).where('tanggal', '==', tanggal).get();
+      let historySnapshot = await db.collection('historyAbsensi')
+        .where('nama', '==', rawNama)
+        .where('tanggal', '==', tanggal).get();
+      let archiveSnapshot = await db.collection('archiveAbsensi')
+        .where('nama', '==', rawNama)
+        .where('tanggal', '==', tanggal).get();
       if(!historySnapshot.empty || !archiveSnapshot.empty){
         alert(`Siswa ${rawNama} sudah tercatat di ${tanggal}`);
         return;
       }
-
-      // Validasi tambahan: Jika status adalah 'late', pastikan alasan atau alasanCustom diisi
       if(statusKedatangan === "late"){
         if(!alasan && !alasanCustom){
           alert("Mohon isi alasan keterlambatan atau alasan kustom.");
           return;
         }
       }
-
       if(statusKedatangan === "late"){
         if(alasanCustom){
           finalAlasan = alasanCustom;
@@ -1418,29 +1140,26 @@
       } else if(statusKedatangan === "izin" || statusKedatangan === "dipulangkan") {
         finalAlasan = alasan || "-";
       }
-
-      // Catat absensi
       let record = {
-        nama: rawNama, // Simpan dengan format asli
+        nama: rawNama,
         tanggal,
-        status:statusKedatangan,
-        alasan:finalAlasan,
+        status: statusKedatangan,
+        alasan: finalAlasan,
         pengisi: currentPengisi || "-"
       };
-
       try {
         await db.collection('historyAbsensi').add(record);
         alert("Data absensi tersimpan!");
-
-        // Update keterlambatan jika status late
         if(statusKedatangan === "late"){
           let keterlambatan = dataKeterlambatan.find(k => k.nama.toLowerCase() === namaSiswa);
           if(keterlambatan){
             keterlambatan.terlambat_total += 1;
-            // Update Firestore
-            let ketSnapshot = await db.collection('dataKeterlambatan').where('nama', '==', keterlambatan.nama).get();
+            let ketSnapshot = await db.collection('dataKeterlambatan')
+              .where('nama', '==', keterlambatan.nama)
+              .get();
             ketSnapshot.forEach(doc => {
-              db.collection('dataKeterlambatan').doc(doc.id).update({terlambat_total: keterlambatan.terlambat_total});
+              db.collection('dataKeterlambatan').doc(doc.id)
+                .update({terlambat_total: keterlambatan.terlambat_total});
             });
           } else {
             let newKeterlambatan = {
@@ -1449,24 +1168,17 @@
             };
             await db.collection('dataKeterlambatan').add(newKeterlambatan);
           }
-
-          // Cek jika terlambat >= 3
           let currentTotal = dataKeterlambatan.find(k => k.nama.toLowerCase() === namaSiswa)?.terlambat_total || 0;
           if(currentTotal === 3){
             alert(`Siswa ${rawNama} sudah terlambat 3x dan harus dipulangkan.`);
-            // Implementasikan logika pemulangan sesuai kebutuhan
           }
         }
-
-        // Reset form
-        document.getElementById('namaSiswa').value="";
-        document.getElementById('tanggalAbsen').value="";
+        document.getElementById('namaSiswa').value = "";
+        document.getElementById('tanggalAbsen').value = "";
         statusSelect.value = "";
         document.getElementById('dropdownAlasan').value = "";
         document.getElementById('alasanCustom').value = "";
         document.getElementById('alasanCustomContainer').style.display = "none";
-
-        // Update UI
         renderHome();
       } catch (error) {
         console.error("Error mencatat absensi:", error);
@@ -1490,27 +1202,23 @@
     /********************************************************
      *      RENDER TABEL HISTORY
      ********************************************************/
-    async function renderHistoryTable(filteredData=null) {
+    async function renderHistoryTable(filteredData = null) {
       let tbody = document.getElementById('historyTableBody');
-      tbody.innerHTML="";
+      tbody.innerHTML = "";
 
       let dataToRender = filteredData || (historyAbsensi.concat(archiveAbsensi));
 
-      dataToRender.forEach((item,index)=>{
-        let tr=document.createElement('tr');
-
-        // Tanggal
-        let tdTgl=document.createElement('td');
-        tdTgl.textContent=item.tanggal;
+      dataToRender.forEach((item) => {
+        let tr = document.createElement('tr');
+        let tdTgl = document.createElement('td');
+        tdTgl.textContent = item.tanggal;
         tr.appendChild(tdTgl);
 
-        // Nama
-        let tdNama=document.createElement('td');
-        tdNama.textContent=item.nama;
+        let tdNama = document.createElement('td');
+        tdNama.textContent = item.nama;
         tr.appendChild(tdNama);
 
-        // Status (Dropdown)
-        let tdStatus=document.createElement('td');
+        let tdStatus = document.createElement('td');
         let selectStatus = document.createElement('select');
         selectStatus.innerHTML = `
           <option value="late" ${item.status === "late" ? "selected" : ""}>Terlambat</option>
@@ -1521,27 +1229,24 @@
         tdStatus.appendChild(selectStatus);
         tr.appendChild(tdStatus);
 
-        // Alasan
-        let tdAlasan=document.createElement('td');
-        tdAlasan.textContent=item.alasan || "-";
+        let tdAlasan = document.createElement('td');
+        tdAlasan.textContent = item.alasan || "-";
         tr.appendChild(tdAlasan);
 
-        // Pengisi
-        let tdPengisi=document.createElement('td');
-        tdPengisi.textContent=item.pengisi || "-";
+        let tdPengisi = document.createElement('td');
+        tdPengisi.textContent = item.pengisi || "-";
         tr.appendChild(tdPengisi);
 
-        // Aksi
-        let tdAksi=document.createElement('td');
-        let btnE=document.createElement('button');
-        btnE.textContent="Edit Tanggal";
+        let tdAksi = document.createElement('td');
+        let btnE = document.createElement('button');
+        btnE.textContent = "Edit Tanggal";
         btnE.classList.add('btn-secondary');
-        btnE.onclick=()=>editRiwayatTanggal(item);
+        btnE.onclick = () => editRiwayatTanggal(item);
 
-        let btnH=document.createElement('button');
-        btnH.textContent="Hapus";
+        let btnH = document.createElement('button');
+        btnH.textContent = "Hapus";
         btnH.classList.add('btn-danger');
-        btnH.onclick=()=>deleteRiwayat(item);
+        btnH.onclick = () => deleteRiwayat(item);
 
         tdAksi.appendChild(btnE);
         tdAksi.appendChild(btnH);
@@ -1553,29 +1258,31 @@
 
     async function updateStatusHistory(item, newStatus){
       try {
-        // Update status di Firestore
         let collectionName = 'historyAbsensi';
-        let snapshot = await db.collection(collectionName).where('nama', '==', item.nama).where('tanggal', '==', item.tanggal).get();
+        let snapshot = await db.collection(collectionName)
+          .where('nama', '==', item.nama)
+          .where('tanggal', '==', item.tanggal)
+          .get();
         if(snapshot.empty){
-          // Cek di archiveAbsensi
           collectionName = 'archiveAbsensi';
-          snapshot = await db.collection(collectionName).where('nama', '==', item.nama).where('tanggal', '==', item.tanggal).get();
+          snapshot = await db.collection(collectionName)
+            .where('nama', '==', item.nama)
+            .where('tanggal', '==', item.tanggal)
+            .get();
         }
         snapshot.forEach(doc => {
           db.collection(collectionName).doc(doc.id).update({status: newStatus});
         });
 
-        // Alert sukses
         alert("Status absensi berhasil diperbarui!");
 
-        // Update keterlambatan jika status berubah
         if(newStatus === "late" && item.status !== "late"){
-          // Tambah keterlambatan
           let keterlambatan = dataKeterlambatan.find(k => k.nama.toLowerCase() === item.nama.toLowerCase());
           if(keterlambatan){
             keterlambatan.terlambat_total += 1;
-            // Update Firestore
-            let ketSnapshot = await db.collection('dataKeterlambatan').where('nama', '==', keterlambatan.nama).get();
+            let ketSnapshot = await db.collection('dataKeterlambatan')
+              .where('nama', '==', keterlambatan.nama)
+              .get();
             ketSnapshot.forEach(doc => {
               db.collection('dataKeterlambatan').doc(doc.id).update({terlambat_total: keterlambatan.terlambat_total});
             });
@@ -1586,20 +1293,17 @@
             };
             await db.collection('dataKeterlambatan').add(newKeterlambatan);
           }
-
-          // Cek jika terlambat >= 3
           let currentTotal = dataKeterlambatan.find(k => k.nama.toLowerCase() === item.nama.toLowerCase())?.terlambat_total || 0;
           if(currentTotal === 3){
             alert(`Siswa ${item.nama} sudah terlambat 3x dan harus dipulangkan.`);
-            // Implementasikan logika pemulangan sesuai kebutuhan
           }
         } else if(newStatus !== "late" && item.status === "late"){
-          // Kurangi keterlambatan
           let keterlambatan = dataKeterlambatan.find(k => k.nama.toLowerCase() === item.nama.toLowerCase());
           if(keterlambatan && keterlambatan.terlambat_total > 0){
-            keterlambatan.terlambat_total -=1;
-            // Update Firestore
-            let ketSnapshot = await db.collection('dataKeterlambatan').where('nama', '==', keterlambatan.nama).get();
+            keterlambatan.terlambat_total -= 1;
+            let ketSnapshot = await db.collection('dataKeterlambatan')
+              .where('nama', '==', keterlambatan.nama)
+              .get();
             ketSnapshot.forEach(doc => {
               if(keterlambatan.terlambat_total === 0){
                 db.collection('dataKeterlambatan').doc(doc.id).delete();
@@ -1609,8 +1313,6 @@
             });
           }
         }
-
-        // Update UI
         renderHome();
       } catch (error) {
         console.error("Error memperbarui status absensi:", error);
@@ -1620,29 +1322,30 @@
 
     async function editRiwayatTanggal(item){
       let oldDate = item.tanggal;
-      let newDate=prompt("Tanggal baru (YYYY-MM-DD):",oldDate);
+      let newDate = prompt("Tanggal baru (YYYY-MM-DD):", oldDate);
       if(newDate && newDate !== oldDate){
-        // Validasi siswa masih ada
         let namaLower = item.nama.toLowerCase();
         let siswaExists = databaseSiswa.some(s => s.nama.toLowerCase() === namaLower);
         if(!siswaExists){
           alert("Siswa tidak ditemukan di database. Silakan tambahkan siswa di menu Data Siswa.");
           return;
         }
-
         try {
-          // Update di Firestore
           let collectionName = 'historyAbsensi';
-          let snapshot = await db.collection(collectionName).where('nama', '==', item.nama).where('tanggal', '==', item.tanggal).get();
+          let snapshot = await db.collection(collectionName)
+            .where('nama', '==', item.nama)
+            .where('tanggal', '==', item.tanggal)
+            .get();
           if(snapshot.empty){
-            // Cek di archiveAbsensi
             collectionName = 'archiveAbsensi';
-            snapshot = await db.collection(collectionName).where('nama', '==', item.nama).where('tanggal', '==', item.tanggal).get();
+            snapshot = await db.collection(collectionName)
+              .where('nama', '==', item.nama)
+              .where('tanggal', '==', item.tanggal)
+              .get();
           }
           snapshot.forEach(doc => {
             db.collection(collectionName).doc(doc.id).update({tanggal: newDate});
           });
-
           alert("Tanggal berhasil diubah!");
         } catch (error) {
           console.error("Error mengubah tanggal absensi:", error);
@@ -1655,36 +1358,38 @@
       if(!confirm(`Hapus data absensi siswa: ${item.nama} pada tanggal ${item.tanggal}?`)) return;
       try {
         let collectionName = 'historyAbsensi';
-        let snapshot = await db.collection(collectionName).where('nama', '==', item.nama).where('tanggal', '==', item.tanggal).get();
+        let snapshot = await db.collection(collectionName)
+          .where('nama', '==', item.nama)
+          .where('tanggal', '==', item.tanggal)
+          .get();
         if(snapshot.empty){
-          // Cek di archiveAbsensi
           collectionName = 'archiveAbsensi';
-          snapshot = await db.collection(collectionName).where('nama', '==', item.nama).where('tanggal', '==', item.tanggal).get();
+          snapshot = await db.collection(collectionName)
+            .where('nama', '==', item.nama)
+            .where('tanggal', '==', item.tanggal)
+            .get();
         }
         snapshot.forEach(doc => {
           db.collection(collectionName).doc(doc.id).delete();
         });
-
-        // Kurangi keterlambatan jika status 'late'
         if(item.status === "late"){
           let keterlambatan = dataKeterlambatan.find(k => k.nama.toLowerCase() === item.nama.toLowerCase());
           if(keterlambatan && keterlambatan.terlambat_total > 0){
-            keterlambatan.terlambat_total -=1;
-            // Update Firestore
-            let ketSnapshot = await db.collection('dataKeterlambatan').where('nama', '==', keterlambatan.nama).get();
+            keterlambatan.terlambat_total = Math.max(keterlambatan.terlambat_total - 1, 0);
+            let ketSnapshot = await db.collection('dataKeterlambatan')
+              .where('nama', '==', keterlambatan.nama)
+              .get();
             ketSnapshot.forEach(doc => {
               if(keterlambatan.terlambat_total === 0){
                 db.collection('dataKeterlambatan').doc(doc.id).delete();
               } else {
-                db.collection('dataKeterlambatan').doc(doc.id).update({terlambat_total: keterlambatan.terlambat_total});
+                db.collection('dataKeterlambatan').doc(doc.id)
+                  .update({terlambat_total: keterlambatan.terlambat_total});
               }
             });
           }
         }
-
         alert("Data absensi terhapus!");
-
-        // Update UI
         renderHome();
       } catch (error) {
         console.error("Error menghapus absensi:", error);
@@ -1695,32 +1400,29 @@
     /********************************************************
      *      RENDER TABEL DATA KETERLAMBATAN
      ********************************************************/
-    function renderDataKeterlambatanTable(filteredData = null){
+    function renderDataKeterlambatanTable(filteredData = null) {
       let tbody = document.getElementById('dataKeterlambatanTable');
       tbody.innerHTML = "";
 
       let dataToRender = filteredData || dataKeterlambatan;
 
-      dataToRender.forEach(async (siswa, index) => {
+      dataToRender.forEach((siswa) => {
         let tr = document.createElement('tr');
-
         let tdNama = document.createElement('td');
         tdNama.textContent = siswa.nama;
         let tdTotal = document.createElement('td');
         tdTotal.textContent = siswa.terlambat_total;
         let tdAksi = document.createElement('td');
 
-        // Tombol Reset
         let btnReset = document.createElement('button');
         btnReset.textContent = "Reset";
-        btnReset.onclick = () => resetKeterlambatan(siswa);
         btnReset.classList.add('btn-danger');
+        btnReset.onclick = () => resetKeterlambatan(siswa);
 
-        // Tombol Hapus
         let btnHapus = document.createElement('button');
         btnHapus.textContent = "Hapus";
-        btnHapus.onclick = () => hapusKeterlambatan(siswa);
         btnHapus.classList.add('btn-danger');
+        btnHapus.onclick = () => hapusKeterlambatan(siswa);
 
         tdAksi.appendChild(btnReset);
         tdAksi.appendChild(btnHapus);
@@ -1733,14 +1435,21 @@
       });
     }
 
-    async function resetKeterlambatan(siswa){
+    /********************************************************
+     *      RESET & HAPUS KETERLAMBATAN (ASYNC/AWAIT)
+     ********************************************************/
+    async function resetKeterlambatan(siswa) {
       if(!confirm(`Reset jumlah keterlambatan siswa: ${siswa.nama}?`)) return;
       try {
-        // Update Firestore
-        let snapshot = await db.collection('dataKeterlambatan').where('nama', '==', siswa.nama).get();
-        snapshot.forEach(doc => {
-          db.collection('dataKeterlambatan').doc(doc.id).update({terlambat_total: 0});
-        });
+        let snapshot = await db.collection('dataKeterlambatan')
+          .where('nama', '==', siswa.nama)
+          .get();
+
+        for (let docu of snapshot.docs) {
+          let docRef = db.collection('dataKeterlambatan').doc(docu.id);
+          await docRef.update({ terlambat_total: 0 });
+        }
+
         alert(`Jumlah keterlambatan siswa "${siswa.nama}" telah direset.`);
       } catch (error) {
         console.error("Error mereset keterlambatan:", error);
@@ -1748,25 +1457,33 @@
       }
     }
 
-    async function hapusKeterlambatan(siswa){
-      if(!confirm(`Hapus data keterlambatan siswa: ${siswa.nama}?`)) return;
+    async function hapusKeterlambatan(siswa) {
+      if(!confirm(`Kurangi jumlah keterlambatan siswa: ${siswa.nama}?`)) return;
       try {
-        // Hapus dari Firestore
-        let snapshot = await db.collection('dataKeterlambatan').where('nama', '==', siswa.nama).get();
-        snapshot.forEach(doc => {
-          db.collection('dataKeterlambatan').doc(doc.id).delete();
-        });
-        alert("Data keterlambatan siswa dihapus dari Data Keterlambatan.");
+        let snapshot = await db.collection('dataKeterlambatan')
+          .where('nama', '==', siswa.nama)
+          .get();
+
+        for (let docu of snapshot.docs) {
+          let currentTotal = docu.data().terlambat_total;
+          let newTotal = currentTotal > 0 ? currentTotal - 1 : 0;
+          let docRef = db.collection('dataKeterlambatan').doc(docu.id);
+          await docRef.update({ terlambat_total: newTotal });
+        }
+
+        alert(`Jumlah keterlambatan siswa "${siswa.nama}" telah dikurangi 1.`);
       } catch (error) {
-        console.error("Error menghapus keterlambatan:", error);
-        alert("Terjadi kesalahan saat menghapus keterlambatan.");
+        console.error("Error mengurangi keterlambatan:", error);
+        alert("Terjadi kesalahan saat mengurangi keterlambatan.");
       }
     }
 
+    /********************************************************
+     *      RESET SEMUA KETERLAMBATAN
+     ********************************************************/
     async function resetSemuaKeterlambatan(){
       if(!confirm("Yakin reset semua keterlambatan siswa?")) return;
       try {
-        // Reset semua keterlambatan di Firestore
         let keterlambatanSnapshot = await db.collection('dataKeterlambatan').get();
         let batch = db.batch();
         keterlambatanSnapshot.forEach(doc => {
@@ -1789,7 +1506,6 @@
         alert("Pilih tanggal terlebih dahulu!");
         return;
       }
-      // Fetch data dari Firestore
       let historySnapshot = await db.collection('historyAbsensi').where('tanggal', '==', date).get();
       let archiveSnapshot = await db.collection('archiveAbsensi').where('tanggal', '==', date).get();
       let filtered = [];
@@ -1814,7 +1530,6 @@
         alert("Tanggal mulai tidak boleh lebih besar dari tanggal akhir!");
         return;
       }
-      // Fetch data dari Firestore
       let historySnapshot = await db.collection('historyAbsensi').where('tanggal', '>=', startDate).where('tanggal', '<=', endDate).get();
       let archiveSnapshot = await db.collection('archiveAbsensi').where('tanggal', '>=', startDate).where('tanggal', '<=', endDate).get();
       let filtered = [];
@@ -1858,20 +1573,15 @@
       let chartTitle = "";
       let labels = [];
       let values = [];
-      let typeChart = 'bar'; // default
+      let typeChart = 'bar';
 
-      // Mendapatkan bulan yang dipilih
       let statistikBulan = document.getElementById('statistikBulan').value;
-
-      // Menggabungkan data dari historyAbsensi dan archiveAbsensi
       let combinedData = historyAbsensi.concat(archiveAbsensi);
 
       if(option === "siswa"){
         if(statistikBulan){
           chartTitle = `Siswa Paling Sering Telat untuk Bulan ${statistikBulan} (Maks 15)`;
-          // Filter data berdasarkan bulan
           let filteredData = combinedData.filter(item => item.tanggal.startsWith(statistikBulan) && item.status === "late");
-          // Hitung keterlambatan per siswa
           let siswaMap = {};
           filteredData.forEach(item => {
             let nama = item.nama;
@@ -1880,18 +1590,16 @@
             }
             siswaMap[nama]++;
           });
-          // Konversi ke array dan sortir
           let arr = [];
           for(let nama in siswaMap){
             arr.push({label: nama, value: siswaMap[nama]});
           }
           arr.sort((a,b) => b.value - a.value);
-          arr = arr.slice(0,15); // Maks 15
+          arr = arr.slice(0,15);
           labels = arr.map(x => x.label);
           values = arr.map(x => x.value);
         } else {
           chartTitle = "Siswa Paling Sering Telat (Maks 15)";
-          // Hitung keterlambatan per siswa
           let siswaMap = {};
           combinedData.forEach(item => {
             if(item.status === "late"){
@@ -1902,13 +1610,12 @@
               siswaMap[nama]++;
             }
           });
-          // Konversi ke array dan sortir
           let arr = [];
           for(let nama in siswaMap){
             arr.push({label: nama, value: siswaMap[nama]});
           }
           arr.sort((a,b) => b.value - a.value);
-          arr = arr.slice(0,15); // Maks 15
+          arr = arr.slice(0,15);
           labels = arr.map(x => x.label);
           values = arr.map(x => x.value);
         }
@@ -1916,9 +1623,7 @@
       } else if(option === "alasan"){
         if(statistikBulan){
           chartTitle = `Alasan Keterlambatan Terbanyak untuk Bulan ${statistikBulan} (Maks 15)`;
-          // Filter data berdasarkan bulan
           let filteredData = combinedData.filter(item => item.tanggal.startsWith(statistikBulan) && item.status === "late");
-          // Hitung keterlambatan per alasan
           let alasanCount = {};
           filteredData.forEach(item => {
             let alasan = item.alasan;
@@ -1927,18 +1632,16 @@
             }
             alasanCount[alasan]++;
           });
-          // Konversi ke array dan sortir
           let arr = [];
           for(let alasan in alasanCount){
             arr.push({label: alasan, value: alasanCount[alasan]});
           }
           arr.sort((a,b) => b.value - a.value);
-          arr = arr.slice(0,15); // Maks 15
+          arr = arr.slice(0,15);
           labels = arr.map(x => x.label);
           values = arr.map(x => x.value);
         } else {
           chartTitle = "Alasan Keterlambatan Terbanyak (Maks 15)";
-          // Hitung keterlambatan per alasan
           let alasanCount = {};
           combinedData.forEach(item => {
             if(item.status === "late"){
@@ -1949,13 +1652,12 @@
               alasanCount[alasan]++;
             }
           });
-          // Konversi ke array dan sortir
           let arr = [];
           for(let alasan in alasanCount){
             arr.push({label: alasan, value: alasanCount[alasan]});
           }
           arr.sort((a,b) => b.value - a.value);
-          arr = arr.slice(0,15); // Maks 15
+          arr = arr.slice(0,15);
           labels = arr.map(x => x.label);
           values = arr.map(x => x.value);
         }
@@ -1963,13 +1665,12 @@
       } else if(option === "bulanan"){
         chartTitle = "Grafik Keterlambatan Bulanan";
         typeChart = 'line';
-        // Hitung keterlambatan per tanggal
         let latenessByDate = {};
         combinedData.forEach(item => {
           if(item.status === "late"){
             let tanggal = item.tanggal;
             if(statistikBulan && !tanggal.startsWith(statistikBulan)){
-              return; // Lewati data yang tidak termasuk bulan yang dipilih
+              return; 
             }
             if(!latenessByDate[tanggal]){
               latenessByDate[tanggal] = 0;
@@ -1977,21 +1678,15 @@
             latenessByDate[tanggal]++;
           }
         });
-        // Sort tanggal
         labels = Object.keys(latenessByDate).sort();
         values = labels.map(date => latenessByDate[date]);
       }
 
-      // Mendapatkan konteks canvas
       let ctx = document.getElementById('chartStatistic').getContext('2d');
-
-      // Jika chart sudah ada, destroy untuk menghindari overlap
       if(chartObj) chartObj.destroy();
       if(latenessLineChart) latenessLineChart.destroy();
 
-      // Menentukan jenis grafik
       if(option === "bulanan"){
-        // Grafik Keterlambatan Bulanan
         latenessLineChart = new Chart(ctx, {
           type: typeChart,
           data: {
@@ -2013,15 +1708,10 @@
                 beginAtZero:true,
                 min:0,
                 max:15,
-                ticks:{
-                  stepSize:1
-                }
+                ticks:{ stepSize:1 }
               },
               x:{
-                ticks:{
-                  autoSkip: true,
-                  maxTicksLimit: 15
-                }
+                ticks:{ autoSkip:true, maxTicksLimit:15 }
               }
             },
             plugins: {
@@ -2035,10 +1725,8 @@
             }
           }
         });
-        // Tampilkan tombol download jika grafik bulanan
         document.getElementById('downloadSection').style.display = "block";
       } else {
-        // Grafik Siswa atau Alasan
         chartObj = new Chart(ctx, {
           type: typeChart,
           data: {
@@ -2086,24 +1774,17 @@
         alert("Silakan pilih file Excel terlebih dahulu.");
         return;
       }
-
       let reader = new FileReader();
       reader.onload = async function(e){
         let data = new Uint8Array(e.target.result);
         let workbook = XLSX.read(data, {type: 'array'});
-
-        // Asumsikan data siswa berada di sheet pertama
         let firstSheetName = workbook.SheetNames[0];
         let worksheet = workbook.Sheets[firstSheetName];
         let jsonData = XLSX.utils.sheet_to_json(worksheet, {header:1});
-
-        // Parsing data
-        // Asumsikan baris pertama adalah header: ["Nama", "Kelas", "NIS", "WaliKelas"]
         if(jsonData.length < 2){
           alert("File Excel tidak memiliki data yang cukup.");
           return;
         }
-
         let headers = jsonData[0];
         let requiredHeaders = ["Nama", "Kelas", "NIS", "WaliKelas"];
         let isValid = requiredHeaders.every((header, index) => header === jsonData[0][index]);
@@ -2111,26 +1792,17 @@
           alert("Format header Excel tidak sesuai. Harus: " + requiredHeaders.join(", "));
           return;
         }
-
-        // Mulai dari baris kedua
         let importedCount = 0;
-        for(let i=1; i<jsonData.length; i++){
+        for(let i = 1; i < jsonData.length; i++){
           let row = jsonData[i];
           let [nama, kelas, nis, waliKelas] = row;
-
           if(!nama || !kelas || !nis || !waliKelas){
-            // Lewati baris yang tidak lengkap
             continue;
           }
-
-          // Cek duplikat di databaseSiswa
           let dupe = databaseSiswa.some(s => s.nama.toLowerCase() === nama.toLowerCase() || s.nis === nis);
           if(dupe){
-            // Lewati duplikat
             continue;
           }
-
-          // Tambah siswa
           let siswa = {nama, kelas, nis, waliKelas};
           try {
             await db.collection('databaseSiswa').add(siswa);
@@ -2139,14 +1811,11 @@
             console.error("Error mengimpor siswa:", error);
           }
         }
-
         if(importedCount > 0){
           alert(`${importedCount} data siswa berhasil diimpor.`);
         } else {
           alert("Tidak ada data siswa yang diimpor. Pastikan file tidak kosong atau data sudah ada di database.");
         }
-
-        // Reset input file
         fileInput.value = "";
       };
       reader.onerror = function(){
@@ -2164,11 +1833,15 @@
         alert("Silakan pilih bulan terlebih dahulu!");
         return;
       }
-
       try {
-        // Filter data untuk bulan tersebut dari archiveAbsensi dan historyAbsensi
-        let historySnapshot = await db.collection('historyAbsensi').where('tanggal', '>=', `${month}-01`).where('tanggal', '<=', `${month}-31`).get();
-        let archiveSnapshot = await db.collection('archiveAbsensi').where('tanggal', '>=', `${month}-01`).where('tanggal', '<=', `${month}-31`).get();
+        let historySnapshot = await db.collection('historyAbsensi')
+          .where('tanggal', '>=', `${month}-01`)
+          .where('tanggal', '<=', `${month}-31`)
+          .get();
+        let archiveSnapshot = await db.collection('archiveAbsensi')
+          .where('tanggal', '>=', `${month}-01`)
+          .where('tanggal', '<=', `${month}-31`)
+          .get();
         let filtered = [];
         historySnapshot.forEach(doc => {
           let data = doc.data();
@@ -2182,27 +1855,20 @@
             filtered.push(data);
           }
         });
-
         if(filtered.length === 0){
           alert("Tidak ada data absensi untuk bulan tersebut.");
           return;
         }
-
-        // Buat worksheet
         let ws_data = [["Nama Siswa", "Tanggal Absensi", "Status", "Alasan", "Kelas", "Wali Kelas"]];
         for(let item of filtered){
-          // Cari kelas dan wali kelas dari databaseSiswa
           let siswa = databaseSiswa.find(s => s.nama.toLowerCase() === item.nama.toLowerCase());
           let kelas = siswa ? siswa.kelas : "-";
           let waliKelas = siswa ? siswa.waliKelas : "-";
           ws_data.push([item.nama, item.tanggal, capitalizeFirstLetter(item.status), item.alasan, kelas, waliKelas]);
         }
-
         let ws = XLSX.utils.aoa_to_sheet(ws_data);
         let wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Absensi");
-
-        // Download
         XLSX.writeFile(wb, `Absensi_${month}.xlsx`);
       } catch (error) {
         console.error("Error mendownload data bulanan:", error);
@@ -2210,7 +1876,6 @@
       }
     }
 
-    // Helper function untuk mengkapitalisasi huruf pertama
     function capitalizeFirstLetter(string) {
       return string.charAt(0).toUpperCase() + string.slice(1);
     }
@@ -2229,29 +1894,24 @@
       }
     }
 
-    // Tampilkan data guru di table, diurut hari senin-sabtu
     function renderProfileGuru(){
       let sorted = [...petugasGuru];
-      // Sort by day index
-      sorted.sort((a,b)=> dayOrder.indexOf(a.hari) - dayOrder.indexOf(b.hari));
+      sorted.sort((a,b) => dayOrder.indexOf(a.hari) - dayOrder.indexOf(b.hari));
+      let tbody = document.getElementById('profileGuruTbody');
+      tbody.innerHTML = "";
+      sorted.forEach((item) => {
+        let tr = document.createElement('tr');
+        let tdHari = document.createElement('td');
+        tdHari.textContent = item.hari;
+        let tdNama = document.createElement('td');
+        tdNama.textContent = item.nama;
+        let tdAksi = document.createElement('td');
 
-      let tbody=document.getElementById('profileGuruTbody');
-      tbody.innerHTML="";
-      sorted.forEach((item, index)=>{
-        let tr=document.createElement('tr');
-        let tdHari=document.createElement('td');
-        tdHari.textContent=item.hari;
-        let tdNama=document.createElement('td');
-        tdNama.textContent=item.nama;
-        let tdAksi=document.createElement('td');
-
-        // Tombol Edit di Profile
         let btnEdit = document.createElement('button');
         btnEdit.textContent = "Edit";
         btnEdit.onclick = () => openEditGuruModal(item.id);
         btnEdit.classList.add('btn-secondary');
 
-        // Tombol Hapus di Profile
         let btnHapus = document.createElement('button');
         btnHapus.textContent = "Hapus";
         btnHapus.onclick = () => hapusPetugasGuru(item.id);
@@ -2259,56 +1919,49 @@
 
         tdAksi.appendChild(btnEdit);
         tdAksi.appendChild(btnHapus);
-
         tr.appendChild(tdHari);
         tr.appendChild(tdNama);
         tr.appendChild(tdAksi);
         tbody.appendChild(tr);
       });
     }
-    // Tampilkan petugasSiswa di <ul>
+
     function renderProfileSiswa(){
       let ul = document.getElementById('profileSiswaList');
-      ul.innerHTML="";
-      petugasSiswa.forEach(s=>{
-        let li=document.createElement('li');
-        li.textContent=s;
+      ul.innerHTML = "";
+      petugasSiswa.forEach(s => {
+        let li = document.createElement('li');
+        li.textContent = s;
         ul.appendChild(li);
       });
     }
 
-    // Menampilkan dropdown Pengisi => hanya guru sesuai hari aktual
     function renderProfilePengisiToday(){
-      let dayName = getTodayDayName(); // ex "Selasa"
-      document.getElementById('hariAktualSpan').textContent= dayName || "(Minggu)";
-
-      let dropdown=document.getElementById('dropdownPengisi');
-      dropdown.innerHTML="";
-
+      let dayName = getTodayDayName();
+      document.getElementById('hariAktualSpan').textContent = dayName || "(Minggu)";
+      let dropdown = document.getElementById('dropdownPengisi');
+      dropdown.innerHTML = "";
       if(!dayName){
-        // Minggu atau hari lain yang tidak piket
-        let opt=document.createElement('option');
-        opt.value="";
-        opt.textContent="(Hari ini libur/Minggu)";
+        let opt = document.createElement('option');
+        opt.value = "";
+        opt.textContent = "(Hari ini libur/Minggu)";
         dropdown.appendChild(opt);
       } else {
-        // filter petugasGuru => item.hari==dayName
-        let todayGuru = petugasGuru.filter(g=>g.hari===dayName);
-        if(todayGuru.length===0){
-          let opt=document.createElement('option');
-          opt.value="";
-          opt.textContent="(Tidak ada guru piket hari ini)";
+        let todayGuru = petugasGuru.filter(g => g.hari === dayName);
+        if(todayGuru.length === 0){
+          let opt = document.createElement('option');
+          opt.value = "";
+          opt.textContent = "(Tidak ada guru piket hari ini)";
           dropdown.appendChild(opt);
         } else {
-          todayGuru.forEach(g=>{
-            let opt=document.createElement('option');
-            opt.value=g.nama; 
-            opt.textContent=g.nama + ` (${g.hari})`;
+          todayGuru.forEach(g => {
+            let opt = document.createElement('option');
+            opt.value = g.nama;
+            opt.textContent = g.nama + ` (${g.hari})`;
             dropdown.appendChild(opt);
           });
         }
       }
-      // Set selected option to currentPengisi if sesuai hari
       if(currentPengisi){
         let options = dropdown.options;
         for(let i=0; i<options.length; i++){
@@ -2318,69 +1971,54 @@
           }
         }
       }
-
-      // Tampilkan currentPengisi di <span>
       document.getElementById('currentPengisiSpan').textContent = currentPengisi || "-";
     }
 
     async function setPengisi(){
-      let dd=document.getElementById('dropdownPengisi');
-      let val=dd.value;
-      currentPengisi=val;
-      document.getElementById('currentPengisiSpan').textContent= currentPengisi||"-";
+      let dd = document.getElementById('dropdownPengisi');
+      let val = dd.value;
+      currentPengisi = val;
+      document.getElementById('currentPengisiSpan').textContent = currentPengisi || "-";
       try {
         await db.collection('currentPengisi').doc('pengisi').set({nama: currentPengisi});
-        alert("Pengisi saat ini => "+currentPengisi);
+        alert("Pengisi saat ini => " + currentPengisi);
       } catch (error) {
         console.error("Error menyimpan pengisi:", error);
         alert("Terjadi kesalahan saat menyimpan pengisi.");
       }
     }
 
-    // Return dayName dari sistem date => dayOrder atau ""
     function getTodayDayName(){
-      let d=new Date();
-      let dayNum=d.getDay(); // 0=Sun,1=Mon,2=Tue,...6=Sat
-      if(dayNum===0||dayNum>6)return "";
-      return dayOrder[dayNum-1]||"";
+      let d = new Date();
+      let dayNum = d.getDay();
+      if(dayNum === 0 || dayNum > 6) return "";
+      return dayOrder[dayNum - 1] || "";
     }
 
     /********************************************************
-     *      DASHBOARD: RENDER DATA (TERINTEGRASI KE HOME)
+     *      DASHBOARD: RENDER DATA
      ********************************************************/
     async function renderHome(){
-      // 1. Grafik Keterlambatan Bulanan
       await renderLatenessLineChart();
-
-      // 2. Top 5 Siswa dengan Keterlambatan Terbanyak
       renderTop5LateStudents();
     }
 
     async function renderLatenessLineChart(){
-      // Tampilkan loader sementara grafik sedang diproses
       let ctx = document.getElementById('chartLatenessLine').getContext('2d');
       ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
       let loader = document.createElement('div');
       loader.classList.add('loader');
       ctx.canvas.parentNode.appendChild(loader);
-
       try {
-        // Ambil bulan terakhir dari data
         let combinedData = historyAbsensi.concat(archiveAbsensi);
         if(combinedData.length === 0){
-          // Tidak ada data absensi untuk membuat grafik
           alert("Tidak ada data absensi untuk membuat grafik Keterlambatan.");
           loader.remove();
           return;
         }
-        // Tentukan bulan terakhir berdasarkan data
         let latestDate = combinedData.reduce((max, item) => item.tanggal > max ? item.tanggal : max, combinedData[0].tanggal);
-        let latestMonth = latestDate.slice(0,7); // YYYY-MM
-
-        // Ambil data untuk bulan terakhir
+        let latestMonth = latestDate.slice(0,7);
         let monthlyData = combinedData.filter(item => item.tanggal.startsWith(latestMonth));
-
-        // Hitung keterlambatan per hari
         let latenessByDate = {};
         monthlyData.forEach(item => {
           if(item.status === "late"){
@@ -2391,8 +2029,6 @@
             latenessByDate[date]++;
           }
         });
-
-        // Buat array tanggal dan jumlah keterlambatan
         let dates = [];
         let counts = [];
         let year = parseInt(latestMonth.slice(0,4));
@@ -2403,11 +2039,7 @@
           dates.push(dateStr);
           counts.push(latenessByDate[dateStr] || 0);
         }
-
-        // Destroy existing chart jika ada
         if(latenessLineChart) latenessLineChart.destroy();
-
-        // Render chart
         latenessLineChart = new Chart(ctx, {
           type: 'line',
           data: {
@@ -2450,8 +2082,6 @@
             }
           }
         });
-
-        // Hapus loader setelah grafik selesai dirender
         loader.remove();
       } catch (error) {
         console.error("Error merender grafik keterlambatan:", error);
@@ -2463,28 +2093,20 @@
     function renderTop5LateStudents(){
       let tbody = document.getElementById('dashboardTop5TableBody');
       tbody.innerHTML = "";
-
-      // Sort dataKeterlambatan descending
-      let sortedKeterlambatan = [...dataKeterlambatan].sort((a,b) => b.terlambat_total - a.terlambat_total);
-      let top5 = sortedKeterlambatan.slice(0,5);
-
+      let sortedKeterlambatan = [...dataKeterlambatan].sort((a, b) => b.terlambat_total - a.terlambat_total);
+      let top5 = sortedKeterlambatan.slice(0, 5);
       top5.forEach((siswa, index) => {
         let tr = document.createElement('tr');
-
         let tdRank = document.createElement('td');
         tdRank.textContent = index + 1;
         tdRank.style.fontWeight = 'bold';
-
         let tdNama = document.createElement('td');
         tdNama.textContent = siswa.nama;
-
         let tdTotal = document.createElement('td');
         tdTotal.textContent = siswa.terlambat_total;
-
         tr.appendChild(tdRank);
         tr.appendChild(tdNama);
         tr.appendChild(tdTotal);
-
         tbody.appendChild(tr);
       });
     }
@@ -2492,23 +2114,16 @@
     /********************************************************
      *      FIREBASE CONFIGURATION
      ********************************************************/
-    // 1. Konfigurasi Firebase
     var firebaseConfig = {
-      apiKey: "AIzaSyAFhjJBCAX9Lwd4x9WD2I8AcJyXXLW_SWg",
+      apiKey: "YOUR_FIREBASE_API_KEY",
       authDomain: "absensiketerlambatanapp.firebaseapp.com",
       projectId: "absensiketerlambatanapp",
-      storageBucket: "absensiketerlambatanapp.firebasestorage.app",
-      messagingSenderId: "522595195668",
-      appId: "1:522595195668:web:b61422a0cccc2cf9778001"
+      storageBucket: "absensiketerlambatanapp.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
     };
-    // 2. Inisialisasi Firebase
     firebase.initializeApp(firebaseConfig);
     var db = firebase.firestore();
-
-    /********************************************************
-     *      FUNGSI FIRESTORE CRUD & LOGIKA LAINNYA
-     ********************************************************/
-    // Semua fungsi CRUD dan logika lain telah didefinisikan di atas
 
     /********************************************************
      *      INIT 
@@ -2521,12 +2136,12 @@
       renderDataKeterlambatanTable();
       renderPetugasGuruTable();
       renderDataSiswaTable();
-      renderDataSiswaList(); // Render datalist untuk autocomplete
+      renderDataSiswaList();
       renderProfileGuru();
       renderProfileSiswa();
       renderProfilePengisiToday();
       await updateProfileInfo();
-      renderHome(); // Render Home dashboard saat inisialisasi
+      renderHome();
     }
 
     /********************************************************
@@ -2535,55 +2150,36 @@
     async function hapusSemuaSiswa(){
       if(!confirm("Apakah Anda yakin ingin menghapus semua data siswa?")) return;
       try {
-        // Hapus semua siswa dari Firestore
         let snapshot = await db.collection('databaseSiswa').get();
         let batch = db.batch();
-        snapshot.forEach(doc => {
-          batch.delete(doc.ref);
-        });
+        snapshot.forEach(doc => { batch.delete(doc.ref); });
         await batch.commit();
 
-        // Hapus semua petugasSiswa
         let petugasSnapshot = await db.collection('petugasSiswa').get();
         let batchPetugas = db.batch();
-        petugasSnapshot.forEach(doc => {
-          batchPetugas.delete(doc.ref);
-        });
+        petugasSnapshot.forEach(doc => { batchPetugas.delete(doc.ref); });
         await batchPetugas.commit();
 
-        // Hapus semua historyAbsensi
         let historySnapshot = await db.collection('historyAbsensi').get();
         let batchHistory = db.batch();
-        historySnapshot.forEach(doc => {
-          batchHistory.delete(doc.ref);
-        });
+        historySnapshot.forEach(doc => { batchHistory.delete(doc.ref); });
         await batchHistory.commit();
 
-        // Hapus semua archiveAbsensi
         let archiveSnapshot = await db.collection('archiveAbsensi').get();
         let batchArchive = db.batch();
-        archiveSnapshot.forEach(doc => {
-          batchArchive.delete(doc.ref);
-        });
+        archiveSnapshot.forEach(doc => { batchArchive.delete(doc.ref); });
         await batchArchive.commit();
 
-        // Hapus semua dataKeterlambatan
         let keterlambatanSnapshot = await db.collection('dataKeterlambatan').get();
         let batchKeterlambatan = db.batch();
-        keterlambatanSnapshot.forEach(doc => {
-          batchKeterlambatan.delete(doc.ref);
-        });
+        keterlambatanSnapshot.forEach(doc => { batchKeterlambatan.delete(doc.ref); });
         await batchKeterlambatan.commit();
 
-        // Hapus semua petugasGuru
         let guruSnapshot = await db.collection('petugasGuru').get();
         let batchGuru = db.batch();
-        guruSnapshot.forEach(doc => {
-          batchGuru.delete(doc.ref);
-        });
+        guruSnapshot.forEach(doc => { batchGuru.delete(doc.ref); });
         await batchGuru.commit();
 
-        // Hapus semua pengisi
         await db.collection('currentPengisi').doc('pengisi').set({nama: ""});
         currentPengisi = "";
 
@@ -2595,7 +2191,6 @@
     }
 
     async function hapusPilihSiswa(){
-      // Dapatkan semua checkbox yang dipilih
       let checkboxes = document.querySelectorAll('.select-siswa:checked');
       if(checkboxes.length === 0){
         alert("Pilih minimal satu siswa untuk dihapus.");
@@ -2603,42 +2198,28 @@
       }
       if(!confirm(`Apakah Anda yakin ingin menghapus ${checkboxes.length} siswa yang dipilih?`)) return;
 
-      // Ambil data siswa yang dipilih
       let selectedIndices = Array.from(checkboxes).map(cb => parseInt(cb.value));
       let selectedSiswa = selectedIndices.map(index => databaseSiswa[index]);
-
       try {
-        // Hapus siswa dari Firestore
         for(let siswa of selectedSiswa){
-          // Hapus dari databaseSiswa
-          let snapshot = await db.collection('databaseSiswa').where('nama', '==', siswa.nama).where('nis', '==', siswa.nis).get();
-          snapshot.forEach(doc => {
-            db.collection('databaseSiswa').doc(doc.id).delete();
-          });
+          let snapshot = await db.collection('databaseSiswa')
+            .where('nama', '==', siswa.nama)
+            .where('nis', '==', siswa.nis)
+            .get();
+          snapshot.forEach(doc => { db.collection('databaseSiswa').doc(doc.id).delete(); });
 
-          // Hapus dari historyAbsensi dan archiveAbsensi
           let historySnapshot = await db.collection('historyAbsensi').where('nama', '==', siswa.nama).get();
-          historySnapshot.forEach(doc => {
-            db.collection('historyAbsensi').doc(doc.id).delete();
-          });
+          historySnapshot.forEach(doc => { db.collection('historyAbsensi').doc(doc.id).delete(); });
+
           let archiveSnapshot = await db.collection('archiveAbsensi').where('nama', '==', siswa.nama).get();
-          archiveSnapshot.forEach(doc => {
-            db.collection('archiveAbsensi').doc(doc.id).delete();
-          });
+          archiveSnapshot.forEach(doc => { db.collection('archiveAbsensi').doc(doc.id).delete(); });
 
-          // Hapus dari dataKeterlambatan
           let ketSnapshot = await db.collection('dataKeterlambatan').where('nama', '==', siswa.nama).get();
-          ketSnapshot.forEach(doc => {
-            db.collection('dataKeterlambatan').doc(doc.id).delete();
-          });
+          ketSnapshot.forEach(doc => { db.collection('dataKeterlambatan').doc(doc.id).delete(); });
 
-          // Hapus dari petugasSiswa jika ada
           let petugasSnapshot = await db.collection('petugasSiswa').where('nama', '==', siswa.nama).get();
-          petugasSnapshot.forEach(doc => {
-            db.collection('petugasSiswa').doc(doc.id).delete();
-          });
+          petugasSnapshot.forEach(doc => { db.collection('petugasSiswa').doc(doc.id).delete(); });
         }
-
         alert(`Data siswa yang dihapus: ${selectedSiswa.map(s => s.nama).join(", ")}`);
       } catch (error) {
         console.error("Error menghapus siswa yang dipilih:", error);
@@ -2651,12 +2232,6 @@
       checkboxes.forEach(cb => cb.checked = source.checked);
     }
 
-    /********************************************************
-     *      FIREBASE LISTENERS SETUP
-     ********************************************************/
-    // Didefinisikan di loadData()
-
-    // Memanggil init saat halaman dimuat
     window.onload = init;
 
     /********************************************************
@@ -2668,7 +2243,6 @@
         alert("Masukkan kata kunci pencarian.");
         return;
       }
-      // Filter dataKeterlambatan berdasarkan nama
       let filtered = dataKeterlambatan.filter(siswa => siswa.nama.toLowerCase().includes(query));
       renderDataKeterlambatanTable(filtered);
     }
@@ -2687,7 +2261,6 @@
         alert("Masukkan kata kunci pencarian.");
         return;
       }
-      // Filter historyAbsensi dan archiveAbsensi berdasarkan nama
       let filtered = historyAbsensi.concat(archiveAbsensi).filter(item => item.nama.toLowerCase().includes(query));
       renderHistoryTable(filtered);
     }
@@ -2706,7 +2279,6 @@
         alert("Masukkan kata kunci pencarian.");
         return;
       }
-      // Filter databaseSiswa berdasarkan nama
       let filtered = databaseSiswa.filter(siswa => siswa.nama.toLowerCase().includes(query));
       renderDataSiswaTable(filtered);
     }
@@ -2716,6 +2288,578 @@
       renderDataSiswaTable();
     }
 
+    /********************************************************
+     *      STATISTIK: BAR CHART (SKALA 0–15)
+     ********************************************************/
+    async function renderStatisticChart(){
+      let option = document.getElementById('chartOption').value;
+      let chartTitle = "";
+      let labels = [];
+      let values = [];
+      let typeChart = 'bar';
+
+      let statistikBulan = document.getElementById('statistikBulan').value;
+      let combinedData = historyAbsensi.concat(archiveAbsensi);
+
+      if(option === "siswa"){
+        if(statistikBulan){
+          chartTitle = `Siswa Paling Sering Telat untuk Bulan ${statistikBulan} (Maks 15)`;
+          let filteredData = combinedData.filter(item => item.tanggal.startsWith(statistikBulan) && item.status === "late");
+          let siswaMap = {};
+          filteredData.forEach(item => {
+            let nama = item.nama;
+            if(!siswaMap[nama]){
+              siswaMap[nama] = 0;
+            }
+            siswaMap[nama]++;
+          });
+          let arr = [];
+          for(let nama in siswaMap){
+            arr.push({label: nama, value: siswaMap[nama]});
+          }
+          arr.sort((a,b) => b.value - a.value);
+          arr = arr.slice(0,15);
+          labels = arr.map(x => x.label);
+          values = arr.map(x => x.value);
+        } else {
+          chartTitle = "Siswa Paling Sering Telat (Maks 15)";
+          let siswaMap = {};
+          combinedData.forEach(item => {
+            if(item.status === "late"){
+              let nama = item.nama;
+              if(!siswaMap[nama]){
+                siswaMap[nama] = 0;
+              }
+              siswaMap[nama]++;
+            }
+          });
+          let arr = [];
+          for(let nama in siswaMap){
+            arr.push({label: nama, value: siswaMap[nama]});
+          }
+          arr.sort((a,b) => b.value - a.value);
+          arr = arr.slice(0,15);
+          labels = arr.map(x => x.label);
+          values = arr.map(x => x.value);
+        }
+
+      } else if(option === "alasan"){
+        if(statistikBulan){
+          chartTitle = `Alasan Keterlambatan Terbanyak untuk Bulan ${statistikBulan} (Maks 15)`;
+          let filteredData = combinedData.filter(item => item.tanggal.startsWith(statistikBulan) && item.status === "late");
+          let alasanCount = {};
+          filteredData.forEach(item => {
+            let alasan = item.alasan;
+            if(!alasanCount[alasan]){
+              alasanCount[alasan] = 0;
+            }
+            alasanCount[alasan]++;
+          });
+          let arr = [];
+          for(let alasan in alasanCount){
+            arr.push({label: alasan, value: alasanCount[alasan]});
+          }
+          arr.sort((a,b) => b.value - a.value);
+          arr = arr.slice(0,15);
+          labels = arr.map(x => x.label);
+          values = arr.map(x => x.value);
+        } else {
+          chartTitle = "Alasan Keterlambatan Terbanyak (Maks 15)";
+          let alasanCount = {};
+          combinedData.forEach(item => {
+            if(item.status === "late"){
+              let alasan = item.alasan;
+              if(!alasanCount[alasan]){
+                alasanCount[alasan] = 0;
+              }
+              alasanCount[alasan]++;
+            }
+          });
+          let arr = [];
+          for(let alasan in alasanCount){
+            arr.push({label: alasan, value: alasanCount[alasan]});
+          }
+          arr.sort((a,b) => b.value - a.value);
+          arr = arr.slice(0,15);
+          labels = arr.map(x => x.label);
+          values = arr.map(x => x.value);
+        }
+
+      } else if(option === "bulanan"){
+        chartTitle = "Grafik Keterlambatan Bulanan";
+        typeChart = 'line';
+        let latenessByDate = {};
+        combinedData.forEach(item => {
+          if(item.status === "late"){
+            let tanggal = item.tanggal;
+            if(statistikBulan && !tanggal.startsWith(statistikBulan)){
+              return;
+            }
+            if(!latenessByDate[tanggal]){
+              latenessByDate[tanggal] = 0;
+            }
+            latenessByDate[tanggal]++;
+          }
+        });
+        labels = Object.keys(latenessByDate).sort();
+        values = labels.map(date => latenessByDate[date]);
+      }
+
+      let ctx = document.getElementById('chartStatistic').getContext('2d');
+      if(chartObj) chartObj.destroy();
+      if(latenessLineChart) latenessLineChart.destroy();
+
+      if(option === "bulanan"){
+        latenessLineChart = new Chart(ctx, {
+          type: typeChart,
+          data: {
+            labels,
+            datasets: [{
+              label: chartTitle,
+              data: values,
+              backgroundColor: 'rgba(231, 76, 60, 0.2)',
+              borderColor: 'rgba(231, 76, 60, 1)',
+              borderWidth: 2,
+              fill: true,
+              tension: 0.3
+            }]
+          },
+          options: {
+            responsive:true,
+            scales:{
+              y:{
+                beginAtZero:true,
+                min:0,
+                max:15,
+                ticks:{ stepSize:1 }
+              },
+              x:{
+                ticks:{ autoSkip:true, maxTicksLimit:15 }
+              }
+            },
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    return ` Keterlambatan: ${context.parsed.y}`;
+                  }
+                }
+              }
+            }
+          }
+        });
+        document.getElementById('downloadSection').style.display = "block";
+      } else {
+        chartObj = new Chart(ctx, {
+          type: typeChart,
+          data: {
+            labels,
+            datasets: [{
+              label: chartTitle,
+              data: values,
+              backgroundColor: option === "siswa" ? 'rgba(54,162,235,0.6)' : 'rgba(255,206,86,0.6)',
+              borderColor: option === "siswa" ? 'rgba(54,162,235,1)' : 'rgba(255,206,86,1)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive:true,
+            scales:{
+              y:{
+                beginAtZero:true,
+                min:0,
+                max:15,
+                ticks:{ stepSize:1 }
+              }
+            },
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    return ` Keterlambatan: ${context.parsed.y}`;
+                  }
+                }
+              }
+            }
+          }
+        });
+        document.getElementById('downloadSection').style.display = "none";
+      }
+    }
+    
+    /********************************************************
+     *      FIREBASE CONFIGURATION
+     ********************************************************/
+    var firebaseConfig = {
+      apiKey: "AIzaSyAFhjJBCAX9Lwd4x9WD2I8AcJyXXLW_SWg",
+      authDomain: "absensiketerlambatanapp.firebaseapp.com",
+      projectId: "absensiketerlambatanapp",
+      storageBucket: "absensiketerlambatanapp.firebasestorage.app",
+      messagingSenderId: "522595195668",
+      appId: "1:522595195668:web:b61422a0cccc2cf9778001"
+    };
+    firebase.initializeApp(firebaseConfig);
+    var db = firebase.firestore();
+
+    /********************************************************
+     *      INIT 
+     ********************************************************/
+    async function init(){
+      await loadData();
+      await archiveWeeklyData();
+      recalcDataSiswaFromHistory();
+      renderHistoryTable();
+      renderDataKeterlambatanTable();
+      renderPetugasGuruTable();
+      renderDataSiswaTable();
+      renderDataSiswaList();
+      renderProfileGuru();
+      renderProfileSiswa();
+      renderProfilePengisiToday();
+      await updateProfileInfo();
+      renderHome();
+    }
+
+    /********************************************************
+     *      FUNGSI HAPUS SEMUA & HAPUS PILIH SISWA DI DATA SISWA SCREEN
+     ********************************************************/
+    async function hapusSemuaSiswa(){
+      if(!confirm("Apakah Anda yakin ingin menghapus semua data siswa?")) return;
+      try {
+        let snapshot = await db.collection('databaseSiswa').get();
+        let batch = db.batch();
+        snapshot.forEach(doc => { batch.delete(doc.ref); });
+        await batch.commit();
+
+        let petugasSnapshot = await db.collection('petugasSiswa').get();
+        let batchPetugas = db.batch();
+        petugasSnapshot.forEach(doc => { batchPetugas.delete(doc.ref); });
+        await batchPetugas.commit();
+
+        let historySnapshot = await db.collection('historyAbsensi').get();
+        let batchHistory = db.batch();
+        historySnapshot.forEach(doc => { batchHistory.delete(doc.ref); });
+        await batchHistory.commit();
+
+        let archiveSnapshot = await db.collection('archiveAbsensi').get();
+        let batchArchive = db.batch();
+        archiveSnapshot.forEach(doc => { batchArchive.delete(doc.ref); });
+        await batchArchive.commit();
+
+        let keterlambatanSnapshot = await db.collection('dataKeterlambatan').get();
+        let batchKeterlambatan = db.batch();
+        keterlambatanSnapshot.forEach(doc => { batchKeterlambatan.delete(doc.ref); });
+        await batchKeterlambatan.commit();
+
+        let guruSnapshot = await db.collection('petugasGuru').get();
+        let batchGuru = db.batch();
+        guruSnapshot.forEach(doc => { batchGuru.delete(doc.ref); });
+        await batchGuru.commit();
+
+        await db.collection('currentPengisi').doc('pengisi').set({nama: ""});
+        currentPengisi = "";
+
+        alert("Semua data siswa telah dihapus!");
+      } catch (error) {
+        console.error("Error menghapus semua siswa:", error);
+        alert("Terjadi kesalahan saat menghapus semua siswa.");
+      }
+    }
+
+    async function hapusPilihSiswa(){
+      let checkboxes = document.querySelectorAll('.select-siswa:checked');
+      if(checkboxes.length === 0){
+        alert("Pilih minimal satu siswa untuk dihapus.");
+        return;
+      }
+      if(!confirm(`Apakah Anda yakin ingin menghapus ${checkboxes.length} siswa yang dipilih?`)) return;
+
+      let selectedIndices = Array.from(checkboxes).map(cb => parseInt(cb.value));
+      let selectedSiswa = selectedIndices.map(index => databaseSiswa[index]);
+      try {
+        for(let siswa of selectedSiswa){
+          let snapshot = await db.collection('databaseSiswa')
+            .where('nama', '==', siswa.nama)
+            .where('nis', '==', siswa.nis)
+            .get();
+          snapshot.forEach(doc => { db.collection('databaseSiswa').doc(doc.id).delete(); });
+
+          let historySnapshot = await db.collection('historyAbsensi').where('nama', '==', siswa.nama).get();
+          historySnapshot.forEach(doc => { db.collection('historyAbsensi').doc(doc.id).delete(); });
+
+          let archiveSnapshot = await db.collection('archiveAbsensi').where('nama', '==', siswa.nama).get();
+          archiveSnapshot.forEach(doc => { db.collection('archiveAbsensi').doc(doc.id).delete(); });
+
+          let ketSnapshot = await db.collection('dataKeterlambatan').where('nama', '==', siswa.nama).get();
+          ketSnapshot.forEach(doc => { db.collection('dataKeterlambatan').doc(doc.id).delete(); });
+
+          let petugasSnapshot = await db.collection('petugasSiswa').where('nama', '==', siswa.nama).get();
+          petugasSnapshot.forEach(doc => { db.collection('petugasSiswa').doc(doc.id).delete(); });
+        }
+        alert(`Data siswa yang dihapus: ${selectedSiswa.map(s => s.nama).join(", ")}`);
+      } catch (error) {
+        console.error("Error menghapus siswa yang dipilih:", error);
+        alert("Terjadi kesalahan saat menghapus siswa yang dipilih.");
+      }
+    }
+
+    function toggleSelectAll(source){
+      let checkboxes = document.querySelectorAll('.select-siswa');
+      checkboxes.forEach(cb => cb.checked = source.checked);
+    }
+
+    window.onload = init;
+
+    /********************************************************
+     *      PENCARIAN DI DATA KETERLAMBATAN
+     ********************************************************/
+    function searchKeterlambatan(){
+      let query = document.getElementById('searchKeterlambatan').value.trim().toLowerCase();
+      if(!query){
+        alert("Masukkan kata kunci pencarian.");
+        return;
+      }
+      let filtered = dataKeterlambatan.filter(siswa => siswa.nama.toLowerCase().includes(query));
+      renderDataKeterlambatanTable(filtered);
+    }
+
+    function resetSearchKeterlambatan(){
+      document.getElementById('searchKeterlambatan').value = "";
+      renderDataKeterlambatanTable();
+    }
+
+    /********************************************************
+     *      PENCARIAN DI HISTORY
+     ********************************************************/
+    function searchHistory(){
+      let query = document.getElementById('searchHistory').value.trim().toLowerCase();
+      if(!query){
+        alert("Masukkan kata kunci pencarian.");
+        return;
+      }
+      let filtered = historyAbsensi.concat(archiveAbsensi).filter(item => item.nama.toLowerCase().includes(query));
+      renderHistoryTable(filtered);
+    }
+
+    function resetSearchHistory(){
+      document.getElementById('searchHistory').value = "";
+      renderHistoryTable();
+    }
+
+    /********************************************************
+     *      PENCARIAN DI DATA SISWA
+     ********************************************************/
+    function searchDataSiswa(){
+      let query = document.getElementById('searchDataSiswa').value.trim().toLowerCase();
+      if(!query){
+        alert("Masukkan kata kunci pencarian.");
+        return;
+      }
+      let filtered = databaseSiswa.filter(siswa => siswa.nama.toLowerCase().includes(query));
+      renderDataSiswaTable(filtered);
+    }
+
+    function resetSearchDataSiswa(){
+      document.getElementById('searchDataSiswa').value = "";
+      renderDataSiswaTable();
+    }
+
+    /********************************************************
+     *      STATISTIK: BAR CHART (SKALA 0–15)
+     ********************************************************/
+    async function renderStatisticChart(){
+      let option = document.getElementById('chartOption').value;
+      let chartTitle = "";
+      let labels = [];
+      let values = [];
+      let typeChart = 'bar';
+
+      let statistikBulan = document.getElementById('statistikBulan').value;
+      let combinedData = historyAbsensi.concat(archiveAbsensi);
+
+      if(option === "siswa"){
+        if(statistikBulan){
+          chartTitle = `Siswa Paling Sering Telat untuk Bulan ${statistikBulan} (Maks 15)`;
+          let filteredData = combinedData.filter(item => item.tanggal.startsWith(statistikBulan) && item.status === "late");
+          let siswaMap = {};
+          filteredData.forEach(item => {
+            let nama = item.nama;
+            if(!siswaMap[nama]){
+              siswaMap[nama] = 0;
+            }
+            siswaMap[nama]++;
+          });
+          let arr = [];
+          for(let nama in siswaMap){
+            arr.push({label: nama, value: siswaMap[nama]});
+          }
+          arr.sort((a,b) => b.value - a.value);
+          arr = arr.slice(0,15);
+          labels = arr.map(x => x.label);
+          values = arr.map(x => x.value);
+        } else {
+          chartTitle = "Siswa Paling Sering Telat (Maks 15)";
+          let siswaMap = {};
+          combinedData.forEach(item => {
+            if(item.status === "late"){
+              let nama = item.nama;
+              if(!siswaMap[nama]){
+                siswaMap[nama] = 0;
+              }
+              siswaMap[nama]++;
+            }
+          });
+          let arr = [];
+          for(let nama in siswaMap){
+            arr.push({label: nama, value: siswaMap[nama]});
+          }
+          arr.sort((a,b) => b.value - a.value);
+          arr = arr.slice(0,15);
+          labels = arr.map(x => x.label);
+          values = arr.map(x => x.value);
+        }
+      } else if(option === "alasan"){
+        if(statistikBulan){
+          chartTitle = `Alasan Keterlambatan Terbanyak untuk Bulan ${statistikBulan} (Maks 15)`;
+          let filteredData = combinedData.filter(item => item.tanggal.startsWith(statistikBulan) && item.status === "late");
+          let alasanCount = {};
+          filteredData.forEach(item => {
+            let alasan = item.alasan;
+            if(!alasanCount[alasan]){
+              alasanCount[alasan] = 0;
+            }
+            alasanCount[alasan]++;
+          });
+          let arr = [];
+          for(let alasan in alasanCount){
+            arr.push({label: alasan, value: alasanCount[alasan]});
+          }
+          arr.sort((a,b) => b.value - a.value);
+          arr = arr.slice(0,15);
+          labels = arr.map(x => x.label);
+          values = arr.map(x => x.value);
+        } else {
+          chartTitle = "Alasan Keterlambatan Terbanyak (Maks 15)";
+          let alasanCount = {};
+          combinedData.forEach(item => {
+            if(item.status === "late"){
+              let alasan = item.alasan;
+              if(!alasanCount[alasan]){
+                alasanCount[alasan] = 0;
+              }
+              alasanCount[alasan]++;
+            }
+          });
+          let arr = [];
+          for(let alasan in alasanCount){
+            arr.push({label: alasan, value: alasanCount[alasan]});
+          }
+          arr.sort((a,b) => b.value - a.value);
+          arr = arr.slice(0,15);
+          labels = arr.map(x => x.label);
+          values = arr.map(x => x.value);
+        }
+      } else if(option === "bulanan"){
+        chartTitle = "Grafik Keterlambatan Bulanan";
+        typeChart = 'line';
+        let latenessByDate = {};
+        combinedData.forEach(item => {
+          if(item.status === "late"){
+            let tanggal = item.tanggal;
+            if(statistikBulan && !tanggal.startsWith(statistikBulan)){
+              return;
+            }
+            if(!latenessByDate[tanggal]){
+              latenessByDate[tanggal] = 0;
+            }
+            latenessByDate[tanggal]++;
+          }
+        });
+        labels = Object.keys(latenessByDate).sort();
+        values = labels.map(date => latenessByDate[date]);
+      }
+
+      let ctx = document.getElementById('chartStatistic').getContext('2d');
+      if(chartObj) chartObj.destroy();
+      if(latenessLineChart) latenessLineChart.destroy();
+
+      if(option === "bulanan"){
+        latenessLineChart = new Chart(ctx, {
+          type: typeChart,
+          data: {
+            labels,
+            datasets: [{
+              label: chartTitle,
+              data: values,
+              backgroundColor: 'rgba(231, 76, 60, 0.2)',
+              borderColor: 'rgba(231, 76, 60, 1)',
+              borderWidth: 2,
+              fill: true,
+              tension: 0.3
+            }]
+          },
+          options: {
+            responsive:true,
+            scales:{
+              y:{
+                beginAtZero:true,
+                min:0,
+                max:15,
+                ticks:{ stepSize:1 }
+              },
+              x:{
+                ticks:{ autoSkip:true, maxTicksLimit:15 }
+              }
+            },
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    return ` Keterlambatan: ${context.parsed.y}`;
+                  }
+                }
+              }
+            }
+          }
+        });
+        document.getElementById('downloadSection').style.display = "block";
+      } else {
+        chartObj = new Chart(ctx, {
+          type: typeChart,
+          data: {
+            labels,
+            datasets: [{
+              label: chartTitle,
+              data: values,
+              backgroundColor: option === "siswa" ? 'rgba(54,162,235,0.6)' : 'rgba(255,206,86,0.6)',
+              borderColor: option === "siswa" ? 'rgba(54,162,235,1)' : 'rgba(255,206,86,1)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive:true,
+            scales:{
+              y:{
+                beginAtZero:true,
+                min:0,
+                max:15,
+                ticks:{ stepSize:1 }
+              }
+            },
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    return ` Keterlambatan: ${context.parsed.y}`;
+                  }
+                }
+              }
+            }
+          }
+        });
+        document.getElementById('downloadSection').style.display = "none";
+      }
+    }
   </script>
 </body>
 </html>
