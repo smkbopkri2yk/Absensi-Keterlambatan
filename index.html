@@ -11,6 +11,9 @@
   <!-- Font Awesome for Icons (Optional, for Theme Toggle) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
+  <!-- SweetAlert2 CSS & JS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
   <!-- TAMBAHKAN CDN: Firebase SDK v8.10.0 -->
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -3008,39 +3011,59 @@
         absensiForm.reset();
         tanggalAbsenInput.valueAsDate = new Date(); // Reset date to today
         toggleAbsensiFieldsVisibility(); // Reset field visibility
-        if (statusKedatangan === "late") await checkLateThreshold(siswa.nama);
+        if (statusKedatangan === "late") await checkLateThreshold(siswa.nama); // MODIFIED: Check after add
       } catch (error) { /* Handled by addData */ }
     }
 
-     // Function to check and handle late threshold (remains the same)
-     async function checkLateThreshold(studentName) {
+    // MODIFIED: checkLateThreshold - Implemented new logic with SweetAlert
+    async function checkLateThreshold(studentName) {
         const nameLower = studentName.toLowerCase();
+        // dataKeterlambatan is updated by Firestore listener after the 'late' record is added
         const currentLateCount = (dataKeterlambatan.find(s => s.nama.toLowerCase() === nameLower)?.terlambat_total || 0);
 
-        console.log(`Checking late threshold for ${studentName}, current count: ${currentLateCount}`);
+        console.log(`Checking late threshold for ${studentName}, new total count: ${currentLateCount}`);
 
-        if (currentLateCount >= lateThreshold) {
+        // Check if current late count is a positive multiple of lateThreshold (e.g., 3)
+        if (currentLateCount > 0 && currentLateCount % lateThreshold === 0) {
             const todayStr = new Date().toISOString().slice(0, 10);
-             const existingDipulangkan = await findDocuments('siswaDipulangkan', 'nama', studentName);
-             const alreadyDipulangkanToday = existingDipulangkan.some(doc => doc.datePulang === todayStr);
+            
+            // Check if already marked for dipulangkan today for this specific threshold level
+            const existingDipulangkanRecords = await findDocuments('siswaDipulangkan', 'nama', studentName);
+            const alreadyMarkedTodayForThisCount = existingDipulangkanRecords.some(
+                doc => doc.datePulang === todayStr && doc.totalLateSaatItu === currentLateCount
+            );
 
-             if (alreadyDipulangkanToday) {
-                 console.log(`${studentName} already marked as 'dipulangkan' today.`);
-                 return;
-             }
-
-             showNotification(`Siswa ${studentName} telah mencapai ${currentLateCount} keterlambatan. Disarankan untuk menghubungi orang tua.`, "warning", 8000);
-
-            try {
-                await addData('siswaDipulangkan', {
-                    nama: studentName,
-                    datePulang: todayStr,
-                    totalLateSaatItu: currentLateCount
-                }, `Siswa ${studentName} ditandai untuk penanganan lebih lanjut (keterlambatan >= ${lateThreshold}).`);
-            } catch (error) {
-                 console.error(`Failed to add ${studentName} to siswaDipulangkan:`, error);
+            if (alreadyMarkedTodayForThisCount) {
+                console.log(`${studentName} already marked as 'dipulangkan' today for reaching ${currentLateCount} lates.`);
+                return; // Don't re-alert or re-record for the exact same breach today
             }
+
+            // Display SweetAlert notification
+            Swal.fire({
+                icon: 'warning',
+                title: 'Peringatan Keterlambatan!',
+                html: `Siswa <strong>${studentName}</strong> telah mencapai <strong>${currentLateCount}</strong> kali keterlambatan (kelipatan ${lateThreshold}).<br><br>Siswa disarankan untuk dipulangkan dan memerlukan tindak lanjut dari Wali Kelas / BP.`,
+                confirmButtonText: 'OK',
+                // footer: 'Tindakan ini akan dicatat.' // Optional footer
+            }).then(async (result) => { // Only record after user acknowledges the alert
+                 if (result.isConfirmed) {
+                    try {
+                        await addData('siswaDipulangkan', {
+                            nama: studentName,
+                            datePulang: todayStr,
+                            totalLateSaatItu: currentLateCount, // Record the count that triggered this
+                            reason: `Mencapai ${currentLateCount} keterlambatan (kelipatan ${lateThreshold})`
+                        }); // Success message handled by addData
+                    } catch (error) {
+                        console.error(`Failed to add ${studentName} to siswaDipulangkan:`, error);
+                        // Error notification handled by addData
+                    }
+                 }
+            });
         }
+        // The original logic for `currentLateCount >= lateThreshold` (non-multiple of 3) is removed
+        // to focus on the "kelipatan 3" requirement. If a general warning is still needed for
+        // simply exceeding the threshold (e.g., 4th, 5th late), that would be a separate `else if` block.
      }
 
 
@@ -3134,7 +3157,7 @@
 
                  const docRef = db.collection('historyAbsensi').doc(); // Auto-generate ID
                  batch.set(docRef, record);
-                 recordsToAdd.push(nama);
+                 recordsToAdd.push(nama); // Store name for checkLateThreshold
             }
         });
 
@@ -3160,8 +3183,8 @@
 
             // Check threshold for all added late students
             if (status === "late") {
-                for (const nama of recordsToAdd) {
-                    await checkLateThreshold(nama); // Check one by one after batch commit
+                for (const namaSiswa of recordsToAdd) { // Iterate through the names that were actually added
+                    await checkLateThreshold(namaSiswa); // MODIFIED: Check after batch commit
                 }
             }
         } catch (error) {
